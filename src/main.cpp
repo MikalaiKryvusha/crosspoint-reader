@@ -578,13 +578,14 @@ void enterDeepSleep(bool fromTimeout = false) {
     // 20 ms sample. A press during the fade still wakes the reader.
     static constexpr unsigned long kFadeMs = 1000;
     const unsigned long fadeStart = lingerMs - kFadeMs;  // every linger value is ≥ 2 s
-    const uint8_t fromLevel = Frontlight.currentOutputLevel();
+    uint8_t fromLevel = 0;  // taken when the fade starts: an on-ramp may still be running during the hold
     bool fading = false;
     const unsigned long start = millis();
     while (true) {
       const unsigned long elapsed = millis() - start;  // read once: the window check and the fade step agree
       if (elapsed >= lingerMs) break;
       if (elapsed >= fadeStart) {
+        if (!fading) fromLevel = Frontlight.currentOutputLevel();
         fading = true;
         const unsigned long left = lingerMs - elapsed;  // 1..kFadeMs
         Frontlight.setOutputLevel(static_cast<uint8_t>((fromLevel * left + kFadeMs / 2) / kFadeMs));
