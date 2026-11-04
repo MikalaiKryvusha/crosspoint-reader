@@ -28,3 +28,10 @@ rows marked **device** are checked by Nikolai on the reader.
 | 12f | Viewer | long tap rotates clockwise; four taps back to portrait | sim (orientation math) + device | clockwise |
 | 14 | /.firmware | SD update opens in /.firmware; Back shows root with .firmware; file browser hides it | sim ✅ 04.11 (`qa_runs/v_fw`) | as described |
 | R | Regression | boot → Home → Settings → open book → turn pages → sleep → wake | sim | no crash, screens as before |
+
+## Device run 04.11.2026 (Nikolai, X4 Pro with the **UC8279** panel)
+✅ viewer: edge swipe pages back (no exit) · touch off → buttons only · reading-orientation change applies after closing the
+control center, picture keeps its long-tap turn · dark theme: positive picture, black fields · JPG/PNG gray, small enlarged
+· About shows «Загрузка» first · B/W screens clean after gray and after wake · control center over a gray photo opens in its
+theme (UC8279 displayDrivingRect) · orientation tile icon · Home cover after theme switch · photo-only long-tap rotation.
+⏳ battery after a night of sleep (05.11). ⏳ trial: HALF (UC8279 scrub) before gray vs ghosts — build a880d886.
