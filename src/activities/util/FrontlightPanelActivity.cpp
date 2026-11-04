@@ -237,7 +237,8 @@ void FrontlightPanelActivity::close() {
   // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform.
   // Settings → Display → «Очищать после шторки» (on by default): the guaranteed clean every time the sheet closes;
   // the screen underneath repaints over it.
-  if (SETTINGS.sheetCloseClean) deepclean::toWhite(renderer);
+  // Not over the photo viewer: it repaints with its own clean (a second one here only added a cycle and a ghost).
+  if (SETTINGS.sheetCloseClean && !grayglass::viewerUnderneath) deepclean::toWhite(renderer);
   finish();
 }
 
