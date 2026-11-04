@@ -41,9 +41,10 @@ constexpr auto kSleepClean = HalDisplay::HALF_REFRESH;
 #endif
 
 // The absolute gray paint has no base pass. On Metalio the prior screen shows
-// through it after the panel sits unpowered, so clean with 0xF7 first.
+// through it after the panel sits unpowered, so clean with 0xF7 first. The X4 Pro
+// (SSD1677, absolute gray) shows the page text through the sleep image the same way.
 void cleanBeforeAbsoluteGray(GfxRenderer& renderer) {
-#if FREEINK_DEVICE_METALIO_EINK4
+#if FREEINK_DEVICE_METALIO_EINK4 || FREEINK_DEVICE_X4PRO
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #else
   (void)renderer;
