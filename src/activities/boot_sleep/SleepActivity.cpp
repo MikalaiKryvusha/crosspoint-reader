@@ -56,6 +56,7 @@ void cleanBeforeAbsoluteGray(GfxRenderer& renderer) {
 // the grays). Absolute gray redraws both planes from the image, so the framebuffer is free to wipe.
 void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
+  LOG_DBG("SLP", "Clean to white (FULL) before absolute gray");
   renderer.clearScreen(0xFF);
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #elif FREEINK_DEVICE_METALIO_EINK4
@@ -506,9 +507,11 @@ bool findNextValidSleepImage(HalFile& dir, const SleepRecentKind recentKind, cha
       continue;
     }
 
+    // Header parses and the file holds every row it promises (a cheap size check, no pixel reads):
+    // a truncated copy is skipped here instead of drawing a blank sleep screen.
     const bool isValid = isBmp ? [&dirFile]() {
       Bitmap bitmap(dirFile);
-      return bitmap.parseHeaders() == BmpReaderError::Ok;
+      return bitmap.parseHeaders() == BmpReaderError::Ok && dirFile.size() >= bitmap.expectedFileSize();
     }()
                                : isValidPngHeader(dirFile);
     if (!isValid) {
@@ -558,6 +561,55 @@ bool selectNextSleepFileInOrder(const char* firstDirPath, const char* secondDirP
     LOG_ERR("SLP", "Failed to save last sleep image");
   }
   return true;
+}
+
+// Random sleep image: a uniform pick among the valid images the folders hold right now, never the one shown
+// last time (when there are two or more). Randomness is the chip's hardware RNG behind random().
+bool selectSleepFileAtRandom(const char* firstDirPath, const char* secondDirPath, std::string& selectedPath) {
+  auto name = makeUniqueNoThrow<char[]>(MAX_SLEEP_FILE_NAME_LEN);
+  if (!name) {
+    LOG_ERR("SLP", "OOM: sleep filename buffer");
+    return false;
+  }
+  std::string lastShown;
+  if (Storage.exists(SLEEP_LAST_SHOWN_PATH)) {
+    Storage.readFileToString("SLP", SLEEP_LAST_SHOWN_PATH, MAX_SLEEP_FILE_NAME_LEN + 32, lastShown);
+  }
+
+  std::string path;
+  uint32_t count = 0;
+  bool lastPresent = false;
+  for (const char* dirPath : {firstDirPath, secondDirPath}) {
+    auto dir = Storage.open(dirPath);
+    if (!dir || !dir.isDirectory()) continue;
+    while (findNextValidSleepImage(dir, SleepRecentKind::Standard, name.get())) {
+      ++count;
+      path = dirPath;
+      path += '/';
+      path += name.get();
+      if (path == lastShown) lastPresent = true;
+    }
+  }
+  if (count == 0) return false;
+  const bool skipLast = lastPresent && count > 1;
+
+  uint32_t target = static_cast<uint32_t>(random(static_cast<long>(skipLast ? count - 1 : count)));
+  for (const char* dirPath : {firstDirPath, secondDirPath}) {
+    auto dir = Storage.open(dirPath);
+    if (!dir || !dir.isDirectory()) continue;
+    while (findNextValidSleepImage(dir, SleepRecentKind::Standard, name.get())) {
+      path = dirPath;
+      path += '/';
+      path += name.get();
+      if (skipLast && path == lastShown) continue;
+      if (target-- != 0) continue;
+      selectedPath = path;
+      Storage.mkdir("/.crosspoint");
+      Storage.writeFile(SLEEP_LAST_SHOWN_PATH, String(selectedPath.c_str()));
+      return true;
+    }
+  }
+  return false;  // the folders changed between the passes
 }
 
 bool selectRandomSleepFile(const char* firstDirPath, const char* secondDirPath, const SleepRecentKind recentKind,
@@ -861,13 +913,24 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
 }
 
 void SleepActivity::renderCustomSleepScreen() const {
-  // The sleep directories take priority over /sleep.bmp: their images rotate in order, one per
-  // sleep; /sleep.bmp is the fallback when they hold no valid image.
-  std::string selectedPath;
-  selectNextSleepFileInOrder("/.sleep", "/sleep", selectedPath);
-  if (!selectedPath.empty()) {
+  // The sleep directories take priority over /sleep.bmp: one image per sleep, in order or at random
+  // (Settings → Display → Sleep Image Order); /sleep.bmp is the fallback when they hold no valid image.
+  // A file whose header parses but whose pixels do not (truncated, damaged) fails only when drawn: take the
+  // next pick. Each pick is remembered as the last shown, so the next call moves past it.
+  constexpr int MAX_PICKS = 8;
+  std::string firstFailed;
+  for (int attempt = 0; attempt < MAX_PICKS; ++attempt) {
+    std::string selectedPath;
+    if (SETTINGS.sleepImageOrder == CrossPointSettings::SLEEP_ORDER_RANDOM) {
+      selectSleepFileAtRandom("/.sleep", "/sleep", selectedPath);
+    } else {
+      selectNextSleepFileInOrder("/.sleep", "/sleep", selectedPath);
+    }
+    if (selectedPath.empty() || selectedPath == firstFailed) break;  // nothing left, or went full circle
     delay(100);
     if (renderCustomSleepBmp(selectedPath)) return;
+    LOG_ERR("SLP", "Sleep image failed to draw, trying the next: %s", selectedPath.c_str());
+    if (firstFailed.empty()) firstFailed = selectedPath;
   }
 
   if (renderCustomSleepBmp("/sleep.bmp")) return;

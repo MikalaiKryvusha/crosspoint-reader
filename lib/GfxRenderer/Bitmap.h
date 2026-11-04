@@ -80,6 +80,9 @@ class Bitmap {
   int getRowBytes() const { return rowBytes; }
   bool is1Bit() const { return bpp == 1; }
   uint16_t getBpp() const { return bpp; }
+  uint32_t getDataOffset() const { return bfOffBits; }
+  // Bytes the header promises: pixel data start + every row. A shorter file is truncated.
+  uint64_t expectedFileSize() const { return bfOffBits + static_cast<uint64_t>(rowBytes) * static_cast<uint64_t>(height); }
 
  private:
   static uint16_t readLE16(HalFile& f);
