@@ -16,5 +16,11 @@ rows marked **device** are checked by Nikolai on the reader.
 | 8a | Panel curve | flat images + curve vs baked images, no curve | sim | identical screenshots |
 | 8b | Panel curve | malformed / missing curve file | sim | renders as without curve, no crash |
 | 11 | About | labels in Russian, SoC Flash, SD rows; list scrolls to the last row | sim + device | values present, last row reachable |
-| 12 | Viewer | prev/next by buttons and side taps, wrap-around, long tap rotates, clean between images | sim + device | — |
+| 12a | Viewer | BMP / PNG / JPG open in gray, small ones enlarged, centered | sim ✅ 04.11 (`qa_runs/v_flow`) | gray image, theme-colored fields |
+| 12b | Viewer | next from the last → first, back from the first → last | sim ✅ 04.11 | wraps both ways |
+| 12c | Viewer | long tap rotates 90°, side tap flips in landscape, Back restores portrait | sim ✅ 04.11 | rotated, exit in portrait |
+| 12d | Viewer | dark theme | sim ✅ 04.11 (`qa_runs/v_dark`) | positive image, black fields, dark «Загрузка» |
+| 12e | Viewer | flip: «Загрузка» on a clean sheet, no harsh B/W flash, then deep clean → grays | device | no harsh frame |
+| 13 | Deep clean | gray sleep / viewer image after a long stay in a menu | device | no line ~1 cm from the top |
+| 14 | /.firmware | SD update opens in /.firmware; Back shows root with .firmware; file browser hides it | sim ✅ 04.11 (`qa_runs/v_fw`) | as described |
 | R | Regression | boot → Home → Settings → open book → turn pages → sleep → wake | sim | no crash, screens as before |

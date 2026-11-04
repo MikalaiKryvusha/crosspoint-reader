@@ -28,6 +28,7 @@
 #include "activities/reader/ReaderUtils.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/DeepClean.h"
 #include "util/PanelCurve.h"
 #include "images/Logo120.h"
 #include "images/MoonIcon.h"
@@ -56,9 +57,7 @@ void cleanBeforeAbsoluteGray(GfxRenderer& renderer) {
 // the grays). Absolute gray redraws both planes from the image, so the framebuffer is free to wipe.
 void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
-  LOG_DBG("SLP", "Clean to white (FULL) before absolute gray");
-  renderer.clearScreen(0xFF);
-  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+  deepclean::toWhite(renderer);  // also erases the menu header ghost (~1 cm from the top)
 #elif FREEINK_DEVICE_METALIO_EINK4
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #else

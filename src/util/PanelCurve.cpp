@@ -41,7 +41,8 @@ bool useBuiltIn(uint8_t table[256], uint32_t& hash) {
 }
 }  // namespace
 
-bool load(uint8_t table[256], uint32_t& hash) {
+// Reads the file (or falls back to the built-in curve) into `table`.
+static bool readFromCard(uint8_t table[256], uint32_t& hash) {
   if (!Storage.exists(PATH)) return useBuiltIn(table, hash);
   std::string text;
   if (!Storage.readFileToString("CRV", PATH, 4096, text)) return useBuiltIn(table, hash);
@@ -75,6 +76,20 @@ bool load(uint8_t table[256], uint32_t& hash) {
   const uint32_t h = fnv1a(parsed);
   hash = h;
   LOG_DBG("CRV", "Panel curve loaded: %08x", static_cast<unsigned>(h));
+  return true;
+}
+
+// The curve is 256 bytes: read once after boot, then kept in RAM for every sleep image and viewer page.
+bool load(uint8_t table[256], uint32_t& hash) {
+  static uint8_t cached[256];
+  static uint32_t cachedHash = 0;
+  static bool ready = false;
+  if (!ready) {
+    readFromCard(cached, cachedHash);
+    ready = true;
+  }
+  for (int i = 0; i < 256; ++i) table[i] = cached[i];
+  hash = cachedHash;
   return true;
 }
 

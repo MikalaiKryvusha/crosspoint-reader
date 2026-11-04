@@ -25,7 +25,8 @@ void SdFirmwareUpdateActivity::onEnter() {
 void SdFirmwareUpdateActivity::launchPicker() {
   // Reuse the standard file browser, restricted to .bin files only.
   startActivityForResult(
-      std::make_unique<FileBrowserActivity>(renderer, mappedInput, "/", FileBrowserActivity::Mode::PickFirmware),
+      std::make_unique<FileBrowserActivity>(renderer, mappedInput, Storage.exists("/.firmware") ? "/.firmware" : "/",
+                                            FileBrowserActivity::Mode::PickFirmware),
       [this](const ActivityResult& result) { onPickerResult(result); });
 }
 

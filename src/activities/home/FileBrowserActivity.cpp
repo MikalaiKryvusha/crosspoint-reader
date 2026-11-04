@@ -117,7 +117,9 @@ void FileBrowserActivity::loadFiles() {
   for (auto file = root.openNextFile(); file; file = root.openNextFile()) {
     file.getName(fileNameBuffer.get(), NAME_BUFFER_SIZE);
     const bool isDirectory = file.isDirectory();
-    if ((!SETTINGS.showHiddenFiles && fileNameBuffer[0] == '.') ||
+    // The firmware picker also sees the hidden /.firmware folder (images live there, out of the library's way).
+    const bool firmwareFolder = mode == Mode::PickFirmware && isDirectory && strcmp(fileNameBuffer.get(), ".firmware") == 0;
+    if ((!SETTINGS.showHiddenFiles && fileNameBuffer[0] == '.' && !firmwareFolder) ||
         strcmp(fileNameBuffer.get(), "System Volume Information") == 0) {
       continue;
     }
