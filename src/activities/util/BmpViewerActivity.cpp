@@ -34,9 +34,9 @@ constexpr char VIEW_CACHE_VERSION[] = "v2";
 
 // Fits the image into the screen. The viewer also enlarges small images (as BMPs are), the sleep cover does not.
 RenderConfig fitImage(const ImageDimensions& dimensions, const GfxRenderer& renderer, const bool enlarge = false) {
-  const float scale = std::min({static_cast<float>(renderer.getScreenWidth()) / dimensions.width,
-                                static_cast<float>(renderer.getScreenHeight()) / dimensions.height,
-                                enlarge ? 1e6f : 1.0f});
+  const float scale =
+      std::min({static_cast<float>(renderer.getScreenWidth()) / dimensions.width,
+                static_cast<float>(renderer.getScreenHeight()) / dimensions.height, enlarge ? 1e6f : 1.0f});
   const int width = std::max(1, std::min(renderer.getScreenWidth(), static_cast<int>(dimensions.width * scale)));
   const int height = std::max(1, std::min(renderer.getScreenHeight(), static_cast<int>(dimensions.height * scale)));
   RenderConfig config{(renderer.getScreenWidth() - width) / 2, (renderer.getScreenHeight() - height) / 2, width,
@@ -95,9 +95,10 @@ bool pixelCacheToBmp(const char* pxcPath, const char* bmpPath, const int expecte
   return output.close();
 }
 
+// A long tap turns the picture clockwise: portrait → landscape (content turned right) → inverted → the other landscape.
 constexpr GfxRenderer::Orientation ROTATION_ORDER[] = {
-    GfxRenderer::Orientation::Portrait, GfxRenderer::Orientation::LandscapeClockwise,
-    GfxRenderer::Orientation::PortraitInverted, GfxRenderer::Orientation::LandscapeCounterClockwise};
+    GfxRenderer::Orientation::Portrait, GfxRenderer::Orientation::LandscapeCounterClockwise,
+    GfxRenderer::Orientation::PortraitInverted, GfxRenderer::Orientation::LandscapeClockwise};
 }  // namespace
 
 BmpViewerActivity::BmpViewerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string path)

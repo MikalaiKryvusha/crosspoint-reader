@@ -2,10 +2,8 @@
 
 class GfxRenderer;
 
-// Deep clean before an absolute-gray image on X4 Pro (SSD1677): two black→white cycles, the last white a FULL
-// refresh. A single clean leaves a faint ghost of what stood on the panel for long (the 84 px header band of the
-// menus showed through gray sleep and viewer images ~1 cm from the top); a weak gray waveform cannot overdrive it,
-// full black/white flips can. Leaves the framebuffer white. No-op on other boards.
+// Clean before an absolute-gray image on X4 Pro (SSD1677): one FULL refresh to white, so the previous screen does
+// not show through and no harsh B/W draft flashes before the grays. Leaves the framebuffer white. No-op elsewhere.
 namespace deepclean {
 void toWhite(GfxRenderer& renderer);
 }  // namespace deepclean

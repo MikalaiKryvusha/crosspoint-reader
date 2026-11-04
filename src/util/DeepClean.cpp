@@ -7,17 +7,11 @@
 namespace deepclean {
 void toWhite(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
-  constexpr int CYCLES = 2;
-  LOG_DBG("CLN", "Deep clean: %d black/white cycles", CYCLES);
-  for (int i = 0; i < CYCLES; ++i) {
-    // Non-differential steps only: a FAST (DU) update drives just the pixels that change, so whatever was already
-    // black (the «Загрузка» popup, the menu header) kept its own history and ghosted through the gray paint.
-    // HALF and FULL bypass the previous-image plane and drive every pixel the same way.
-    renderer.clearScreen(0x00);
-    renderer.displayBuffer(HalDisplay::HALF_REFRESH);
-    renderer.clearScreen(0xFF);
-    renderer.displayBuffer(i == CYCLES - 1 ? HalDisplay::FULL_REFRESH : HalDisplay::HALF_REFRESH);
-  }
+  // One FULL clean to white. Two black/white cycles (FAST, then HALF) did not remove the band on the device: the cause
+  // was the gray paint starting before the panel rails settled (fixed in the SSD1677 driver), not too little cleaning.
+  LOG_DBG("CLN", "Clean to white (FULL) before absolute gray");
+  renderer.clearScreen(0xFF);
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #else
   (void)renderer;
 #endif
