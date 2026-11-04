@@ -52,6 +52,9 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Enum(StrId::STR_SLEEP_LIGHT_LINGER, &CrossPointSettings::sleepLightLinger,
                          {StrId::STR_STATE_OFF, StrId::STR_SECONDS_2, StrId::STR_SECONDS_5, StrId::STR_SECONDS_10},
                          "sleepLightLinger", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_LIGHT_RAMP, &CrossPointSettings::lightRamp,
+                         {StrId::STR_STATE_OFF, StrId::STR_MS_200, StrId::STR_MS_500, StrId::STR_MS_1000}, "lightRamp",
+                         StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_IMAGE_SETTLED_REDRAW, &CrossPointSettings::imageSettledRedraw,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "imageSettledRedraw", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SHEET_CLOSE_CLEAN, &CrossPointSettings::sheetCloseClean,

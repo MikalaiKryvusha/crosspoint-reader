@@ -283,6 +283,13 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // (index into Off / 2 s / 5 s / 10 s; a power-button press in that window wakes the reader).
   enum SLEEP_LIGHT_LINGER { SLEEP_LIGHT_OFF = 0, SLEEP_LIGHT_2S, SLEEP_LIGHT_5S, SLEEP_LIGHT_10S, SLEEP_LIGHT_COUNT };
   uint8_t sleepLightLinger = SLEEP_LIGHT_5S;
+  // Settings → Display → «Плавная подсветка» (Nikolai 04.11.2026): the light's on/off and wake ramp length.
+  enum LIGHT_RAMP { LIGHT_RAMP_OFF = 0, LIGHT_RAMP_200MS, LIGHT_RAMP_500MS, LIGHT_RAMP_1000MS, LIGHT_RAMP_COUNT };
+  uint8_t lightRamp = LIGHT_RAMP_200MS;
+  uint32_t getLightRampMs() const {
+    static constexpr uint32_t kMs[] = {0, 200, 500, 1000};
+    return kMs[lightRamp < LIGHT_RAMP_COUNT ? lightRamp : 0];
+  }
   uint8_t imageSettledRedraw = 1;
   // Sleep screen cover filter
   uint8_t sleepScreenCoverFilter = NO_FILTER;

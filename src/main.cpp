@@ -88,6 +88,9 @@ static bool wakePowerReleasePending = false;
 // (Nikolai 04.11.2026: «нажатие в эти 5 секунд должно разбудить», and the light must not blink): enterDeepSleep()
 // returns instead of sleeping, and the next loop() pass restarts the inactivity timer from this flag.
 static bool sleepCancelledInPlace = false;
+// A hold that woke the device must be released before it can count as a new in-app long press (loop()). File scope so
+// a sleep cancelled in place can re-arm it as a real wake does.
+static bool powerReleasedSinceWake = false;
 
 // Fonts
 EpdFont notosans14RegularFont(&notosans_14_regular);
@@ -154,8 +157,8 @@ enum class BootResume : uint8_t {
 // the current activity. WiFi activities call silentRestart() in onExit() to
 // clear heap fragmentation on the way out, but deep sleep is a full chip reset
 // on wake and already clears the heap, so rebooting here would just power the
-// device back up against the user's sleep gesture. Never cleared:
-// startDeepSleep() does not return, so a set latch only ends at the wakeup reset.
+// device back up against the user's sleep gesture. Cleared only by a sleep cancelled in the light linger (enterDeepSleep
+// returns then); otherwise startDeepSleep() does not return and a set latch ends at the wakeup reset.
 static bool deepSleepInProgress = false;
 
 // A silent restart is internal maintenance, so the light must come back exactly
@@ -578,8 +581,9 @@ void enterDeepSleep(bool fromTimeout = false) {
     const uint8_t fromLevel = Frontlight.currentOutputLevel();
     bool fading = false;
     const unsigned long start = millis();
-    while (millis() - start < lingerMs) {
-      const unsigned long elapsed = millis() - start;
+    while (true) {
+      const unsigned long elapsed = millis() - start;  // read once: the window check and the fade step agree
+      if (elapsed >= lingerMs) break;
       if (elapsed >= fadeStart) {
         fading = true;
         const unsigned long left = lingerMs - elapsed;  // 1..kFadeMs
@@ -613,13 +617,20 @@ void enterDeepSleep(bool fromTimeout = false) {
     const unsigned long releaseStart = millis();
     while (pin >= 0 && digitalRead(pin) == pressed && millis() - releaseStart < 5000) delay(10);
     wakePowerReleasePending = true;
+    powerReleasedSinceWake = false;  // a hold kept past the wait does not sleep again until let go, as after a wake
     allowSleepAt = millis() + 2000;  // as after a boot: a hold right now does not put it straight back to sleep
     sleepCancelledInPlace = true;
     deepSleepInProgress = false;
+    // What a real wake puts back: the splash flag (a power loss later must not boot splashless onto a stale frame)
+    // and no Quick Resume frame left behind.
+    APP_STATE.showBootScreen = true;
+    APP_STATE.saveToFile();
+    if (isQuickResumeSleep) Storage.remove(SLEEP_FRAME_FILE);
     if (APP_STATE.lastSleepFromReader && !APP_STATE.openEpubPath.empty()) {
       activityManager.goToReader(APP_STATE.openEpubPath);
     } else {
-      activityManager.goHome();
+      // A clean first paint over the sleep image, as setup() asks on a wake (needsWakeRefresh); Quick Resume wakes fast.
+      activityManager.goHome(HomeMenuItem::NONE, !isQuickResumeSleep);
     }
     return;
   }
@@ -864,6 +875,9 @@ void setup() {
                               : slideSwitchOwnsLight()
                                   ? gpio.isToggleSwitchOn()
                                   : (SETTINGS.frontlightOn != 0 && SETTINGS.frontlightRestoreOnWake != 0);
+#ifndef SIMULATOR  // the simulator HAL (external) has no light ramp
+  Frontlight.setRampMs(SETTINGS.getLightRampMs());
+#endif
   Frontlight.begin(SETTINGS.frontlightBrightness, SETTINGS.frontlightWarmth, restoreLightOn);
 
   switch (wakeupReason) {
@@ -1106,6 +1120,9 @@ void loop() {
     sleepCancelledInPlace = false;
     lastActivityTime = millis();
   }
+#ifndef SIMULATOR
+  Frontlight.setRampMs(SETTINGS.getLightRampMs());  // «Плавная подсветка» applies as soon as it is changed
+#endif
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || gpio.wasTouchActivity() || halTiltSensor.hadActivity() ||
       remoteActed || activityManager.preventAutoSleep()) {
     lastActivityTime = millis();         // Reset inactivity timer
@@ -1194,7 +1211,6 @@ void loop() {
   // A hold that woke the device must be released before it can count as a new
   // in-app long press. Otherwise a user who keeps holding after wake would put
   // the device straight back to sleep once allowSleepAt expires.
-  static bool powerReleasedSinceWake = false;
   if (!gpio.isPressed(HalGPIO::BTN_POWER)) powerReleasedSinceWake = true;
 
   // On X4 Pro with SLEEP, a press still within the click window is a

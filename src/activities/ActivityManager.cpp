@@ -382,7 +382,14 @@ void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefr
       initialMenuItem = HomeMenuItem::FILE_TRANSFER;
     } else if (activityName == "Settings" || activityName == "SettingsList") {
       initialMenuItem = HomeMenuItem::SETTINGS_MENU;
+    } else if (activityName == "Flashlight") {
+      initialMenuItem = HomeMenuItem::FLASHLIGHT;
     }
+#if KRINIK_MAMA
+    else if (activityName == "Mama") {
+      initialMenuItem = HomeMenuItem::MAMA_HEART;
+    }
+#endif
   }
   replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput, initialMenuItem, cleanInitialRefresh));
 }

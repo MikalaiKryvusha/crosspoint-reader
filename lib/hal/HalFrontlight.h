@@ -15,7 +15,12 @@ class HalFrontlight {
 
   void setBrightness(uint8_t percent);
   void setWarmth(uint8_t warmPercent);
+  // On X4 Pro the switch is a ramp (setRampMs) on the perceptual curve (Nikolai 04.11.2026: «плавной ШИМ анимацией»), and
+  // so is the light coming on at boot/wake (begin): stepped every 20 ms by an esp_timer in its own task — the caller
+  // (boot, the control center, the power-button toggle) never waits for it. Other boards switch at once, as before.
   void setOn(bool on);
+  // Ramp length in ms (Settings → Display → «Плавная подсветка»); 0 = switch at once.
+  void setRampMs(uint32_t ms) { rampUs = static_cast<int64_t>(ms) * 1000; }
   // Fade support (sleep light linger): the 8-bit perceptual output level (SDK setBrightnessLevel, gamma 2) that gives
   // the same duty as the current brightness percent (gamma 1.6554), so a fade starts without a jump; and a raw output
   // write that leaves the saved brightness and the on/off state untouched. 0 = dark.
@@ -26,7 +31,7 @@ class HalFrontlight {
   // Park the PWM pads at the LED-off level and hold them through deep sleep (the saved light state is untouched;
   // begin() releases the hold on the next full boot; the settled-redraw timer path and the SD-error path never call
   // it, so there the pads stay parked — the light stays off).
-  void prepareForDeepSleep() { manager.prepareForDeepSleep(); }
+  void prepareForDeepSleep();
 
   uint8_t brightness() const { return lastBrightness; }
   uint8_t warmth() const { return manager.colorTemperature(); }
@@ -40,6 +45,21 @@ class HalFrontlight {
   // toggling back on restores it.
   uint8_t lastBrightness = 60;
   bool lit = false;
+
+  // The ramp. Every write to the manager goes under `mutex`: the timer task and the main/input tasks share it.
+  static void rampTick(void* self);
+  static uint8_t levelFor(uint8_t percent);
+  void startRampLocked(bool toOn);
+  void cancelRampLocked();
+  void* rampTimer = nullptr;  // esp_timer_handle_t, created in begin() on X4 Pro
+  void* mutex = nullptr;      // SemaphoreHandle_t
+  int64_t rampStartUs = 0;
+  int64_t rampUs = 200000;
+  uint8_t rampFrom = 0;
+  uint8_t rampTo = 0;
+  uint8_t outLevel = 0;  // the level on the LEDs now (8-bit perceptual), for a ramp or fade to start from
+  bool ramping = false;
+  bool rampToOn = false;
 
   static HalFrontlight instance;
 };
