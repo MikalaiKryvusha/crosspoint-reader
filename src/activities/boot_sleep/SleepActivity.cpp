@@ -752,7 +752,7 @@ bool selectRandomSleepFile(const char* firstDirPath, const char* secondDirPath, 
   return true;
 }
 
-bool drawSleepPopupPreservingFrame(GfxRenderer& renderer) {
+[[maybe_unused]] bool drawSleepPopupPreservingFrame(GfxRenderer& renderer) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const int frameThickness = metrics.popupFrameThickness;
   const int popupY = static_cast<int>(renderer.getScreenHeight() * metrics.popupTopOffsetRatio);
@@ -788,10 +788,27 @@ void releaseSdFontCachesForDecode(const GfxRenderer& renderer) {
   }
 }
 
+// The own sleep image drawn by the last sleep (empty: none), for the settled redraw.
+std::string lastCustomSleepPath;
+
 }  // namespace
+
+bool SleepActivity::redrawLastCustomImage(GfxRenderer& renderer, MappedInputManager& mappedInput) {
+  if (lastCustomSleepPath.empty()) return false;
+  const SleepActivity painter(renderer, mappedInput);
+  return painter.redrawCustomImage(lastCustomSleepPath);
+}
+
+bool SleepActivity::redrawCustomImage(const std::string& path) const {
+  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  const ScopedCleanup portraitAgain{[this]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
+  deepclean::shortClean(renderer);
+  return renderCustomSleepBmp(path);
+}
 
 void SleepActivity::onEnter() {
   Activity::onEnter();
+  lastCustomSleepPath.clear();
 
   const bool renderQuickResume =
       SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::QUICK_RESUME ||
@@ -820,13 +837,8 @@ void SleepActivity::onEnter() {
     // output-level inversion first so the retained content keeps its visible
     // polarity after the display driver returns to normal.
     if (frameWasInverted) renderer.invertScreen();
-    if (APP_STATE.lastSleepFromReader) {
-      ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
-    }
-    drawSleepPopupPreservingFrame(renderer);
-    if (APP_STATE.lastSleepFromReader) {
-      renderer.setOrientation(GfxRenderer::Orientation::Portrait);
-    }
+    // No «Entering sleep» popup on the way to sleep (Nikolai 04.11.2026): a frame drawn seconds before a gray image
+    // prints into it (remnant voltage, research/gray_stripe.md).
     releaseSdFontCachesForDecode(renderer);
     if (sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::COVER_TRANSPARENT) {
       return renderCoverSleepScreen();
@@ -834,24 +846,12 @@ void SleepActivity::onEnter() {
     return renderTransparentCustomSleepScreen();
   }
 
-  // Over a gray photo (viewer) the framebuffer holds its B/W draft: the popup over it flashed a harsh black-and-white
-  // copy of the photo. Put the popup on a white sheet instead.
-  // Over a gray photo (sleep straight from the viewer) no popup: the sleep clean that erases the photo comes right
-  // after, and a popup over it was one more harsh transition of the photo.
+  // No popup on the way to sleep (Nikolai 04.11.2026): a frame drawn seconds before the gray sleep image prints into
+  // it (remnant voltage); the sleep image itself says the reader is asleep.
   const bool overGrayPhoto = grayglass::imageOnGlass;
   grayglass::imageOnGlass = false;
   grayglass::trace("sleep enter: overGrayPhoto=%d mode=%d", overGrayPhoto ? 1 : 0,
                    static_cast<int>(SETTINGS.sleepScreen));
-  if (!overGrayPhoto) {
-    // Show popup with reader orientation only when going to sleep from reader
-    if (APP_STATE.lastSleepFromReader) {
-      ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
-      GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
-      renderer.setOrientation(GfxRenderer::Orientation::Portrait);
-    } else {
-      GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
-    }
-  }
 
   switch (SETTINGS.sleepScreen) {
     case (CrossPointSettings::SLEEP_SCREEN_MODE::BLANK):
@@ -944,12 +944,18 @@ void SleepActivity::renderCustomSleepScreen() const {
     }
     if (selectedPath.empty() || selectedPath == firstFailed) break;  // nothing left, or went full circle
     delay(100);
-    if (renderCustomSleepBmp(selectedPath)) return;
+    if (renderCustomSleepBmp(selectedPath)) {
+      lastCustomSleepPath = selectedPath;
+      return;
+    }
     LOG_ERR("SLP", "Sleep image failed to draw, trying the next: %s", selectedPath.c_str());
     if (firstFailed.empty()) firstFailed = selectedPath;
   }
 
-  if (renderCustomSleepBmp("/sleep.bmp")) return;
+  if (renderCustomSleepBmp("/sleep.bmp")) {
+    lastCustomSleepPath = "/sleep.bmp";
+    return;
+  }
 
   renderer.setOrientation(GfxRenderer::Orientation::Portrait);
   renderDefaultSleepScreen();

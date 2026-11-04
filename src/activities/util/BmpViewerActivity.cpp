@@ -323,6 +323,8 @@ void BmpViewerActivity::showMessage(const char* message) {
 void BmpViewerActivity::showCurrent() {
   LOG_DBG("BMP", "Show %d/%d: %s", currentImageIndex + 1, static_cast<int>(siblingImages.size()), filePath.c_str());
   paintedVisit = activityManager.visit();
+  paintedAtMs = millis();
+  settledRedrawPending = true;
   renderer.setOrientation(drawOrientation());
   const char* failure = paintCurrent();
   renderer.setOrientation(holdOrientation());
@@ -387,7 +389,8 @@ void BmpViewerActivity::onExit() {
     return;
   }
   grayglass::imageOnGlass = false;
-  deepclean::toWhite(renderer);  // leaving the gray image: the clean before the menus
+  // Settings → Display → «Redraw Menus» (on by default): a short clean before the menus, so the photo leaves no trace.
+  if (SETTINGS.menuExitClean) deepclean::shortClean(renderer);
 }
 
 void BmpViewerActivity::openSibling(const int delta) {
@@ -545,6 +548,18 @@ void BmpViewerActivity::loop() {
   // night mode, touch) may have changed.
   if (activityManager.visit() != paintedVisit) {
     showCurrent();
+    return;
+  }
+
+  // Settled redraw (X4 Pro, Nikolai 04.11.2026): whatever was drawn seconds before the gray image (the file
+  // browser's header line) prints into it and drains in minutes. Two minutes after the paint, repaint once with a
+  // short clean — the image comes back band-free.
+  if (SETTINGS.imageSettledRedraw && settledRedrawPending && grayglass::imageOnGlass &&
+      millis() - paintedAtMs >= 120000UL) {
+    LOG_DBG("BMP", "Settled redraw after 2 min");
+    deepclean::shortClean(renderer);
+    showCurrent();
+    settledRedrawPending = false;
     return;
   }
 

@@ -51,5 +51,7 @@ class BmpViewerActivity final : public Activity {
   bool goingToSleep = false;  // set before the sleep screen replaces the viewer
   int viewTurns = 0;          // long-tap quarter turns, clockwise
   uint32_t paintedVisit = 0;  // screen visit of the last paint; a newer one means a sheet covered the image
+  unsigned long paintedAtMs = 0;      // when the current image was painted
+  bool settledRedrawPending = false;  // one clean repaint after the remnant drains (2 min), then none until next paint
   GfxRenderer::Orientation savedOrientation = GfxRenderer::Orientation::Portrait;
 };

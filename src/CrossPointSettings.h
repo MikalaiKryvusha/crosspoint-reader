@@ -263,8 +263,15 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t sleepImageOrder = SLEEP_ORDER_SEQUENTIAL;
   // Home opens with a full (flashing) refresh, so it never shows traces of the previous screen.
   uint8_t homeFullRefresh = 0;
-  // Krinik: the guaranteed clean (scrub to black, then white) every time the control center closes.
+  // Krinik: a short clean every time the control center closes over the menus («Clean After Control Center»).
   uint8_t sheetCloseClean = 1;
+  // Krinik: a short clean when leaving a viewer image for the menus («Redraw Menus»).
+  uint8_t menuExitClean = 1;
+  // Krinik (X4 Pro, 04.11.2026): settled redraws — the gray image is repainted once with a short clean after the
+  // remnant charge of the frames drawn before it has drained: the sleep image 5 min after sleep, a viewer image 2 min
+  // after it opened.
+  uint8_t sleepSettledRedraw = 1;
+  uint8_t imageSettledRedraw = 1;
   // Sleep screen cover filter
   uint8_t sleepScreenCoverFilter = NO_FILTER;
   // Status bar settings

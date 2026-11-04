@@ -28,7 +28,9 @@ constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .listScrollSide = 0,
                                  .listTitleBold = false,
                                  .headerSidePadding = 18,
-                                 .headerUnderlineSize = 3,
+                                 // Krinik 04.11.2026: no rule under the header — drawn on the same row of every menu
+                                 // screen right before a viewer image, it printed into the gray as a band ~1 cm down.
+                                 .headerUnderlineSize = 0,
                                  .headerTitleAlign = 0,  // left
                                  .headerBatterySide = 0,
                                  .headerClockCentered = false,

@@ -238,7 +238,7 @@ void FrontlightPanelActivity::close() {
   // Settings → Display → «Очищать после шторки» (on by default): the guaranteed clean every time the sheet closes;
   // the screen underneath repaints over it.
   // Not over the photo viewer: it repaints with its own clean (a second one here only added a cycle and a ghost).
-  if (SETTINGS.sheetCloseClean && !grayglass::viewerUnderneath) deepclean::toWhite(renderer);
+  if (SETTINGS.sheetCloseClean && !grayglass::viewerUnderneath) deepclean::shortClean(renderer);
   finish();
 }
 

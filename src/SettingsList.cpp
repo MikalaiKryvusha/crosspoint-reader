@@ -41,8 +41,14 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                          StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_HOME_FULL_REFRESH, &CrossPointSettings::homeFullRefresh,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "homeFullRefresh", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_SLEEP_SETTLED_REDRAW, &CrossPointSettings::sleepSettledRedraw,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sleepSettledRedraw", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_IMAGE_SETTLED_REDRAW, &CrossPointSettings::imageSettledRedraw,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "imageSettledRedraw", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SHEET_CLOSE_CLEAN, &CrossPointSettings::sheetCloseClean,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sheetCloseClean", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_MENU_EXIT_CLEAN, &CrossPointSettings::menuExitClean,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "menuExitClean", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
                          {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
                          "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY));

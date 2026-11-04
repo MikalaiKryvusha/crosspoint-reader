@@ -43,6 +43,12 @@
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+#include <driver/gpio.h>
+#include <esp_sleep.h>
+
+#include "activities/boot_sleep/SleepActivity.h"
+#endif
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "platform/UsbSerialJtagHandoff.h"
@@ -464,6 +470,40 @@ static bool holdSleepWhileUsbPowered() {
 }
 #endif
 
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+// Settled sleep redraw (Krinik, 04.11.2026; Settings → Display → «Redraw Sleep Screen»): frames drawn seconds before
+// the gray sleep image print into it and drain in minutes. Light-sleep 5 minutes (RAM, display state and rails kept),
+// then repaint the same own image once with a short clean. Returns true when the power button ended the nap — the
+// caller then wakes the reader instead of going to deep sleep.
+static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
+
+static bool napThenRedrawSleepImage() {
+  const int8_t pin = BoardConfig::ACTIVE.input.power;
+  if (pin < 0) return false;
+  const auto g = static_cast<gpio_num_t>(pin);
+  const bool activeHigh = BoardConfig::ACTIVE.input.powerActiveHigh;
+  pinMode(pin, activeHigh ? INPUT_PULLDOWN : INPUT_PULLUP);
+  const int pressed = activeHigh ? HIGH : LOW;
+  while (digitalRead(pin) == pressed) delay(10);  // the press that asked for sleep must not end the nap
+
+  LOG_DBG("MAIN", "Sleep settle nap: 5 min");
+  esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
+  gpio_wakeup_enable(g, activeHigh ? GPIO_INTR_HIGH_LEVEL : GPIO_INTR_LOW_LEVEL);
+  esp_sleep_enable_gpio_wakeup();
+  esp_light_sleep_start();
+  const auto cause = esp_sleep_get_wakeup_cause();
+  gpio_wakeup_disable(g);
+  // gpio_wakeup_disable() keeps the level type; a later pinMode() would turn it into an interrupt storm.
+  gpio_set_intr_type(g, GPIO_INTR_DISABLE);
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
+  if (cause != ESP_SLEEP_WAKEUP_TIMER) return true;
+
+  LOG_DBG("MAIN", "Sleep settle nap over: redrawing the sleep image");
+  SleepActivity::redrawLastCustomImage(renderer, mappedInputManager);
+  return false;
+}
+#endif
+
 // Enter deep sleep mode
 void enterDeepSleep(bool fromTimeout = false) {
   HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
@@ -512,6 +552,17 @@ void enterDeepSleep(bool fromTimeout = false) {
   const bool wakeOnHeldButton = holdSleepWhileUsbPowered();
 #else
   const bool wakeOnHeldButton = false;
+#endif
+
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+  if (SETTINGS.sleepSettledRedraw && !isQuickResumeSleep &&
+      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
+    Frontlight.setOn(false);  // the nap and the redraw run dark; the preference stays for restore-on-wake
+    if (napThenRedrawSleepImage()) {
+      LOG_DBG("MAIN", "Power button during the sleep settle nap: waking");
+      esp_restart();
+    }
+  }
 #endif
 
   halTiltSensor.deepSleep();
