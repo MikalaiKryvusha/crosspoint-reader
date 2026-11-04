@@ -6,6 +6,7 @@
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
 #include "activities/ActivityManager.h"
+#include "components/UITheme.h"
 
 void FlashlightActivity::onEnter() {
   Activity::onEnter();
@@ -23,9 +24,14 @@ void FlashlightActivity::onExit() {
 }
 
 void FlashlightActivity::render(RenderLock&&) {
-  // White on the glass in either theme: night mode inverts the whole output (the render task applies it before
-  // render()), so the buffer is filled black there.
-  renderer.clearScreen(SETTINGS.screenInverted ? 0x00 : 0xFF);
+  // White page with the usual header band on top: back arrow + «Выйти», so the way out is plain (Nikolai
+  // 04.11.2026). The rest of the glass stays white for light; a tap anywhere still leaves.
+  const auto& metrics = UITheme::getInstance().getMetrics();
+  renderer.clearScreen(0xFF);
+  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, renderer.getScreenWidth(), metrics.headerHeight}, "Выйти");
+  // Night mode inverts the whole output (the render task applies it before render()): pre-invert the buffer so the
+  // glass shows this page as drawn — white, black header text — in either theme.
+  if (SETTINGS.screenInverted) renderer.invertScreen();
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);
 }
 

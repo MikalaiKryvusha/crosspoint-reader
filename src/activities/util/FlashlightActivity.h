@@ -1,8 +1,8 @@
 #pragma once
 #include "activities/Activity.h"
 
-// Home → «Фонарик» (Nikolai 04.11.2026): the whole screen white and the frontlight at full output. A tap (or Back /
-// OK) returns Home; leaving by any way — Home, sleep — puts the light back as it was: the saved brightness, or dark if
+// Home → «Фонарик» (Nikolai 04.11.2026): a white screen under a header band (back arrow + «Выйти») and the frontlight
+// at full output. A tap anywhere (or Back / OK) returns Home; leaving by any way — Home, sleep — puts the light back as it was: the saved brightness, or dark if
 // it was off. The saved brightness and the on/off setting are never touched.
 class FlashlightActivity final : public Activity {
  public:
