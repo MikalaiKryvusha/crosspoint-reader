@@ -301,6 +301,7 @@ void BmpViewerActivity::showMessage(const char* message) {
 }
 
 void BmpViewerActivity::showCurrent() {
+  LOG_DBG("BMP", "Show %d/%d: %s", currentImageIndex + 1, static_cast<int>(siblingImages.size()), filePath.c_str());
   // No «Загрузка» popup: the current image stays on screen while the next one is prepared, then the deep clean and
   // the gray paint. A popup left a ghost through the gray image, and drawing it over the framebuffer (the B/W draft
   // of the gray image on screen) flashed a harsh black-and-white frame.
