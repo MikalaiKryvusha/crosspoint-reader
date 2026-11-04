@@ -1,3 +1,47 @@
+# CrossPoint Reader — сборка Николая (X4 Pro)
+
+Форк [crosspoint-reader/crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) для
+Xteink X4 Pro. Версия на экране «Об устройстве» — `2.0.0-nk`. Оригинальный README — ниже, после этого раздела.
+
+## Что изменено
+
+| Что | Было | Стало |
+|---|---|---|
+| Заставка сна | рисуется поверх страницы, сквозь неё видны буквы | перед заставкой экран очищается полным обновлением |
+| Папка заставок | `/sleep.bmp` главнее папки, из папки — случайная | картинки из `/.sleep` и `/sleep` по кругу в порядке имён, `/sleep.bmp` — запасная |
+| Переход по сноске | часто на страницу раньше нужной | на страницу, где начинается текст сноски |
+
+## Прошить через веб-интерфейс читалки (без кабеля)
+
+1. Скачать `firmware.bin` нужной версии со страницы [Releases](../../releases) этого репозитория.
+2. На читалке: **File Transfer** (Передача файлов) → **Join a Network** (Подключиться к сети). На экране появится
+   адрес, например `http://192.168.1.7`; подойдёт и `http://crosspoint.local`.
+3. В браузере на компьютере открыть этот адрес → **Files** → **Upload** → загрузить `firmware.bin` в корень карты.
+4. На читалке выйти из File Transfer: **Settings** (Настройки) → **System** (Система) →
+   **SD Card Firmware Update** (Обновление системы с SD-карты) → выбрать загруженный файл → подтвердить.
+5. Дождаться перезагрузки, не выключать и не нажимать кнопки. Перед записью читалка проверяет файл: заголовок,
+   контрольную сумму, SHA256. Повреждённый файл она не запишет.
+6. Проверить: **Settings → System → About** (Об устройстве) — версия `2.0.0-nk`.
+7. Файл прошивки с карты после этого можно удалить.
+
+**Не нажимать «Check for Updates» (Проверить обновления):** читалка поставит официальную версию и затрёт эти правки.
+
+## Откатиться на официальную прошивку
+
+Тем же путём, с файлом `crosspoint-<версия>-x4pro.bin` со страницы
+[официальных релизов](https://github.com/crosspoint-reader/crosspoint-reader/releases). По кабелю — через
+[веб-прошивальщик](https://crosspointreader.com/#flash-tools).
+
+## Собрать самому
+
+```sh
+python3 -m venv .venv && .venv/bin/pip install platformio
+.venv/bin/pio run -e x4pro-nk          # → .pio/build/x4pro-nk/firmware.bin
+cmake -S test -B build/test -G Ninja && cmake --build build/test && ctest --test-dir build/test   # тесты на компьютере
+```
+
+---
+
 # CrossPoint Reader
 
 [![Fund contributors](https://img.shields.io/badge/%F0%9F%91%91_Fund_contributors-royalty.dev-BB953A?style=for-the-badge&labelColor=1a1a1a)](https://app.royalty.dev/crosspoint-reader/crosspoint-reader)
