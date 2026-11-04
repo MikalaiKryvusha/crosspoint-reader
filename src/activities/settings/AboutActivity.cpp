@@ -9,6 +9,10 @@
 #include <esp_mac.h>
 
 #include <cstdio>
+#ifdef SIMULATOR
+#include <cstdlib>
+#include <filesystem>
+#endif
 
 #include "MappedInputManager.h"
 #include "components/UITheme.h"
@@ -21,6 +25,10 @@ enum MenuItem {
   ITEM_FIRMWARE,
   ITEM_CHIP,
   ITEM_FLASH,
+  ITEM_SD_FS,
+  ITEM_SD_SIZE,
+  ITEM_SD_USED,
+  ITEM_SD_FREE,
   ITEM_DISPLAY,
   ITEM_RESOLUTION,
   ITEM_TOUCH,
@@ -28,17 +36,13 @@ enum MenuItem {
   ITEM_RTC,
   ITEM_IMU,
   ITEM_MAC,
-  ITEM_SD_SIZE,
-  ITEM_SD_FS,
-  ITEM_SD_USED,
-  ITEM_SD_FREE,
 };
 
 // Upstream keeps these labels in English for support screenshots; the krinik build reads them in Russian.
 const char* const menuNames[AboutActivity::ITEM_COUNT] = {
-    "Устройство",     "Прошивка",       "Процессор",         "SoC Flash",     "Контроллер экрана",
-    "Разрешение",     "Сенсор",         "Подсветка",         "Часы (RTC)",    "Датчик наклона",
-    "MAC-адрес",      "SD Flash",       "SD: файловая система", "SD: занято", "SD: свободно",
+    "Устройство",          "Прошивка",       "Процессор",      "Всего объём SoC Flash", "Файловая система SD",
+    "Всего объём SD",      "Занято на SD",   "Свободно на SD", "Контроллер экрана",     "Разрешение",
+    "Тачскрин",            "Подсветка",      "Часы (RTC)",     "Датчик наклона",        "MAC-адрес",
 };
 
 // «14,5 ГБ» / «35 МБ»: GiB with one decimal (comma), MiB below 1 GiB.
@@ -66,7 +70,11 @@ const char* fatTypeName(const uint8_t fatType) {
     case 64:
       return "exFAT";
   }
+#ifdef SIMULATOR
+  return "host";
+#else
   return "—";
+#endif
 }
 
 // Chip part numbers, not user prose — deliberately untranslated.
@@ -149,14 +157,26 @@ void AboutActivity::onEnter() {
   rowValues_[ITEM_MAC] = buf;
 
   // SD card: the volume mounted at boot. Used space scans the FAT on the first call (cached ~20 s).
+  // The desktop simulator has no SD volume: it reports the host folder that stands in for the card.
+#ifdef SIMULATOR
+  const char* simSd = std::getenv("CROSSPOINT_SIM_SD");
+  std::error_code spaceError;
+  const auto space = std::filesystem::space(simSd && *simSd ? simSd : "./fs_", spaceError);
+  const uint64_t sdTotal = spaceError ? 0 : space.capacity;
+  const auto sdUsedBytes = [&] { return spaceError ? 0 : space.capacity - space.available; };
+  const auto sdFatType = [] { return static_cast<uint8_t>(0); };
+#else
   const uint64_t sdTotal = Storage.sdTotalBytes();
+  const auto sdUsedBytes = [] { return Storage.sdUsedBytes(); };
+  const auto sdFatType = [] { return Storage.sdFatType(); };
+#endif
   if (sdTotal == 0) {
     rowValues_[ITEM_SD_SIZE] = "нет карты";
     rowValues_[ITEM_SD_FS] = rowValues_[ITEM_SD_USED] = rowValues_[ITEM_SD_FREE] = "—";
   } else {
-    const uint64_t sdUsed = Storage.sdUsedBytes();
+    const uint64_t sdUsed = sdUsedBytes();
     rowValues_[ITEM_SD_SIZE] = formatBytes(sdTotal);
-    rowValues_[ITEM_SD_FS] = fatTypeName(Storage.sdFatType());
+    rowValues_[ITEM_SD_FS] = fatTypeName(sdFatType());
     rowValues_[ITEM_SD_USED] = formatBytes(sdUsed);
     rowValues_[ITEM_SD_FREE] = formatBytes(sdUsed <= sdTotal ? sdTotal - sdUsed : 0);
   }
