@@ -17,7 +17,8 @@ class HalFrontlight {
   void setWarmth(uint8_t warmPercent);
   void setOn(bool on);
   // Park the PWM pads at the LED-off level and hold them through deep sleep (the saved light state is untouched;
-  // begin() releases the hold on the next wake).
+  // begin() releases the hold on the next full boot; the settled-redraw timer path and the SD-error path never call
+  // it, so there the pads stay parked — the light stays off).
   void prepareForDeepSleep() { manager.prepareForDeepSleep(); }
 
   uint8_t brightness() const { return lastBrightness; }

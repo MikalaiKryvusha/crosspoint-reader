@@ -518,9 +518,16 @@ void BmpViewerActivity::doSetSleepCover() {
     // Own sleep images draw in the sleep image orientation (SleepActivity::renderCustomSleepScreen): prepare the cover
     // in it so it lands 1:1.
     const auto viewOrientation = renderer.getOrientation();
-    // «By Image» (value 4): the cover is drawn in the viewer's current orientation, so its shape matches the photo.
     if (SETTINGS.sleepOrientation != CrossPointSettings::SLEEP_ORIENTATION_BY_IMAGE) {
       ReaderUtils::applyOrientation(renderer, SETTINGS.sleepOrientation);
+    } else {
+      // «By Image»: the photo's own shape, as applySleepOrientation reads the cover back at sleep — a wide photo in
+      // the native landscape (CCW), otherwise portrait. Not the reading orientation: a wide photo prepared in
+      // portrait would come out cropped or shrunk.
+      ImageDimensions photo;
+      const bool wide = JpegToFramebufferConverter::getDimensionsStatic(filePath, photo) && photo.width > photo.height;
+      renderer.setOrientation(wide ? GfxRenderer::Orientation::LandscapeCounterClockwise
+                                   : GfxRenderer::Orientation::Portrait);
     }
     success = saveJpegSleepCover();
     renderer.setOrientation(viewOrientation);

@@ -477,8 +477,9 @@ static bool holdSleepWhileUsbPowered() {
 // memory (kept through deep sleep, cleared on power loss).
 static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
 RTC_DATA_ATTR char sleepRedrawPath[192];
-// A power-button press during the 5-second light linger at sleep entry: the reader sleeps for 10 ms and this flag makes
-// that timer wake an ordinary power-button wake (Nikolai 04.11.2026: «нажатие в эти 5 секунд должно разбудить»).
+// A power-button press during the sleep light linger (Settings → Display, 2/5/10 s): the reader sleeps for 10 ms and
+// this flag makes that wake an ordinary power-button wake (Nikolai 04.11.2026: «нажатие в эти 5 секунд должно
+// разбудить»).
 RTC_DATA_ATTR bool lingerWakeRequested = false;
 // This boot came from a panic: no unattended timer redraw on the next sleep (no sleep → panic → awake cycle).
 static bool bootWasPanic = false;
@@ -550,7 +551,7 @@ void enterDeepSleep(bool fromTimeout = false) {
     LOG_DBG("MAIN", "Sleep redraw armed in 5 min: %s", sleepRedrawPath);
   }
 
-  // The light lingers 5 s over the fresh sleep image before it goes dark (Nikolai 04.11.2026: «успеть в темноте
+  // The light lingers over the fresh sleep image before it goes dark (Nikolai 04.11.2026: «успеть в темноте
   // насладиться заставкой»). Only when it is on. A new power-button press in that window wakes the reader: rather than
   // unwinding a half-done sleep entry, it sleeps for 10 ms and setup() treats that timer wake as a button wake.
   // Settings → Display → «Подсветка на засыпании»: Off / 2 / 5 / 10 s.
@@ -561,12 +562,20 @@ void enterDeepSleep(bool fromTimeout = false) {
     const int8_t pin = BoardConfig::ACTIVE.input.power;
     const int pressed = BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW;
     // The press that asked for sleep (hold-to-sleep) may still be down: only a new press, after a release, counts.
-    bool released = pin < 0 || digitalRead(pin) != pressed;
+    // Both are debounced over 20 ms samples: a release is 2 up samples in a row, a press 3 down samples in a row
+    // (≈ 40–60 ms), so the contact bounce of letting go of the hold never reads as a new press.
+    static constexpr int kReleaseSamples = 2;
+    static constexpr int kPressSamples = 3;
+    bool released = pin < 0;
+    int upRun = 0;
+    int downRun = 0;
     const unsigned long start = millis();
     while (millis() - start < lingerMs) {
       const bool down = pin >= 0 && digitalRead(pin) == pressed;
-      if (!down) released = true;
-      if (released && down) {
+      upRun = down ? 0 : upRun + 1;
+      downRun = down ? downRun + 1 : 0;
+      if (upRun >= kReleaseSamples) released = true;
+      if (released && downRun >= kPressSamples) {
         LOG_DBG("MAIN", "Power button during the sleep light linger: waking");
         sleepRedrawPath[0] = '\0';  // no settled redraw: the reader is waking
         lingerWakeRequested = true;
@@ -685,8 +694,9 @@ void setup() {
   // reports this boot as Other; it is handled below, before anything else draws.
   const bool timerWake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
   const bool settledRedrawWake = timerWake && sleepRedrawPath[0] != '\0';
-  // The 10 ms sleep after a press during the sleep light linger: an ordinary power-button wake.
-  const bool lingerWake = timerWake && lingerWakeRequested;
+  // The 10 ms sleep after a press during the sleep light linger: an ordinary power-button wake. Any deep-sleep wake
+  // with the flag counts, whatever the cause: the button's own EXT1 wake may beat the 10 ms timer.
+  const bool lingerWake = esp_reset_reason() == ESP_RST_DEEPSLEEP && lingerWakeRequested;
   if (lingerWake) wakeupReason = HalGPIO::WakeupReason::PowerButton;
   lingerWakeRequested = false;
 #else
