@@ -112,12 +112,15 @@ void FrontlightPanelActivity::onExit() {
   // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform — always,
   // whatever «Очищать после шторки» says. Not over the photo viewer: it repaints its gray image itself, and a gray
   // pass drops a promotion unused.
-  if (themeSwitched && !grayglass::viewerUnderneath) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
-  // Settings → Display → «Очищать после шторки» (off by default): a short clean every time the sheet closes; the
-  // screen underneath repaints over it. Not over the viewer, not after a theme switch or the refresh tile (their FULL
-  // repaint is the clean, and a clean here would consume that promotion).
-  if (SETTINGS.sheetCloseClean && !themeSwitched && !refreshTileUsed && !grayglass::viewerUnderneath) {
-    deepclean::shortClean(renderer);
+  // Going to sleep with the sheet open: the sleep screen does its own white sheet — neither of these.
+  if (!goingToSleep) {
+    if (themeSwitched && !grayglass::viewerUnderneath) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+    // Settings → Display → «Очищать после шторки» (off by default): a short clean every time the sheet closes; the
+    // screen underneath repaints over it. Not over the viewer, not after a theme switch or the refresh tile (their
+    // FULL repaint is the clean, and a clean here would consume that promotion).
+    if (SETTINGS.sheetCloseClean && !themeSwitched && !refreshTileUsed && !grayglass::viewerUnderneath) {
+      deepclean::shortClean(renderer);
+    }
   }
   Activity::onExit();
 }
@@ -160,10 +163,10 @@ void FrontlightPanelActivity::onTileEvent(const fui::ActionEvent& event, void* u
 void FrontlightPanelActivity::runTile(const int idx) {
   switch (idx) {
     case 0:  // Night mode (inverted output polarity, applied to the whole UI)
+      themeApplying = true;  // first: a render already reading the old theme must not see a cleared flag after it
       SETTINGS.screenInverted = SETTINGS.screenInverted ? 0 : 1;
       SETTINGS.saveToFile();
       themeSwitched = true;  // Nikolai 04.11.2026: any theme switch → a FULL clean once the sheet closes
-      themeApplying = true;  // no close until the sheet is repainted in the new theme
       // Over the photo viewer the framebuffer holds a picture, not UI: re-express it for the new polarity so the
       // visible part under the sheet stays positive (the sheet redraws its own area; the viewer repaints on close).
       if (grayglass::viewerUnderneath) renderer.invertScreen();

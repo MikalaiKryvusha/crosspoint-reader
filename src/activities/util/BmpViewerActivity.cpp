@@ -234,8 +234,8 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
   return ok;
 }
 
-// Paints a ≤ 2-bit bitmap centered: the absolute gray image straight over what is on screen (no clean — see the
-// settled redraw in loop()); the B/W framebuffer is rebuilt after for popups and differential updates.
+// Paints a ≤ 2-bit bitmap centered: the absolute gray image, whose base pass cleans to white first (one HALF of the
+// wiped framebuffer); the B/W framebuffer is rebuilt after for popups and differential updates.
 bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   grayglass::imageOnGlass = false;
   // Gray needs normal output polarity (the driver offers no grayscale while inverted), as the sleep screen does.
@@ -281,8 +281,8 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   }
 
   if (absolute) {
-    // No clean before the gray (time, not cleans, removes ghosts) — but wipe the framebuffer in memory: it holds the
-    // B/W draft of the photo on screen, and any B/W paint the gray pass falls back to must be white, not that draft.
+    // Wipe the framebuffer: the absolute gray pass first paints it with one HALF (the driver's base pass), and it
+    // still holds the B/W draft of the photo on screen — that HALF flashed a harsh copy of the old photo (04.11.2026).
     renderer.clearScreen(0xFF);
     if (!renderer.displayGrayscaleBase(HalDisplay::GrayscaleMode::Absolute)) return false;
   } else {
@@ -340,7 +340,8 @@ void BmpViewerActivity::showCurrent() {
 
 // Paints the current image in the draw orientation; returns the message to show on failure.
 const char* BmpViewerActivity::paintCurrent() {
-  // No «Загрузка» popup: the current image stays on screen while the next one is prepared, then the gray paint. A popup left a ghost through the gray image, and drawing it over the framebuffer (the B/W draft
+  // No «Загрузка» popup: the current image stays on screen while the next one is prepared, then the gray paint.
+  // A popup left a ghost through the gray image, and drawing it over the framebuffer (the B/W draft
   // of the gray image on screen) flashed a harsh black-and-white frame.
   renderer.setRenderMode(GfxRenderer::BW);
 
@@ -557,9 +558,10 @@ void BmpViewerActivity::loop() {
     return;
   }
 
+#if FREEINK_DEVICE_X4PRO
   // Settled redraw (X4 Pro, Nikolai 04.11.2026): whatever was drawn seconds before the gray image (the file
-  // browser's header line) prints into it and drains in minutes. Two minutes after the paint, repaint once with a
-  // short clean — the image comes back band-free.
+  // browser's header line) prints into it and drains in minutes. Two minutes after the paint, repaint it once — its
+  // own path cleans to white first (the driver's base pass) — and the image comes back band-free.
   if (SETTINGS.imageSettledRedraw && settledRedrawPending && grayglass::imageOnGlass &&
       millis() - paintedAtMs >= 120000UL) {
     LOG_DBG("BMP", "Settled redraw after 2 min");
@@ -567,12 +569,12 @@ void BmpViewerActivity::loop() {
       // Unprompted paint from the input loop: hold the render lock so a queued render (its polarity switch would
       // cancel a gray pass) cannot interleave with it.
       RenderLock lock;
-      deepclean::shortClean(renderer);
       showCurrent();
     }
     settledRedrawPending = false;
     return;
   }
+#endif
 
   // As on the book reading surface: no left-edge swipe-to-exit here — in swipe mode a right swipe pages back. The
   // physical Back button exits; the Home gesture/key stays available.

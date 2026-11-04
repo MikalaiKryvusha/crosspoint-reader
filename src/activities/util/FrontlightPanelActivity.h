@@ -82,7 +82,11 @@ class FrontlightPanelActivity final : public Activity, private UiAppHost {
   explicit FrontlightPanelActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
   void onEnter() override;
   void onExit() override;
+  void prepareForSleep() override { goingToSleep = true; }
   void loop() override;
   void render(RenderLock&&) override;
   bool handleHomeGesture() override;
+
+ private:
+  bool goingToSleep = false;  // set before the sleep screen replaces the sheet: no exit clean / promotion
 };

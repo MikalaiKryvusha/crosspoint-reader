@@ -551,8 +551,8 @@ void enterDeepSleep(bool fromTimeout = false) {
 }
 
 void setupDisplayAndFonts(bool seamless = false) {
-  // Once per boot: the settled sleep redraw sets the display up early and, when the power button was pressed during
-  // it, the boot goes on into the ordinary setup call below.
+  // Double-init guard: the settled sleep redraw sets the display up early (seamless) and, when the power button is
+  // held at its end, the boot goes on into the ordinary call — which then keeps that seamless setup.
   static bool done = false;
   if (done) return;
   done = true;
@@ -640,7 +640,13 @@ void setup() {
     WiFi.onEvent(applyTxCap, ARDUINO_EVENT_WIFI_AP_START);
   }
 
-  const auto wakeupReason = gpio.getWakeupReason();
+  auto wakeupReason = gpio.getWakeupReason();
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+  // The settled sleep redraw's 5-minute timer fired (armed by enterDeepSleep(), path in RTC memory). getWakeupReason()
+  // reports this boot as Other; it is handled below, before anything else draws.
+  const bool settledRedrawWake = esp_reset_reason() == ESP_RST_DEEPSLEEP &&
+                                 esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && sleepRedrawPath[0] != '\0';
+#endif
   // Sample the wake hold now — a click wake is released within milliseconds of
   // boot — but defer the sleep-or-boot decision until SETTINGS is loaded below:
   // click-to-wake is a setting, and an X4 battery power-off cuts all power, so
@@ -670,12 +676,41 @@ void setup() {
   // We need 6 open files concurrently when parsing a new chapter
   if (!Storage.begin()) {
     LOG_ERR("MAIN", "SD card initialization failed");
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+    if (settledRedrawWake) {
+      sleepRedrawPath[0] = '\0';
+      powerManager.startDeepSleep(gpio);  // nothing to redraw from; nobody asked the reader to wake
+    }
+#endif
     setupDisplayAndFonts(isSilentReboot);
     activityManager.goToFullScreenMessage("SD card error", EpdFontFamily::BOLD);
     return;
   }
 
   HalSystem::checkPanic();
+
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+  if (settledRedrawWake) {
+    // Repaint the same own sleep image (a white sheet, then the image), in the dark, and sleep again — power button
+    // only now. If the button is held when the repaint ends, this boot becomes an ordinary power-button wake.
+    const std::string path = sleepRedrawPath;
+    sleepRedrawPath[0] = '\0';
+    LOG_DBG("MAIN", "Settled sleep redraw: %s", path.c_str());
+    if (gpio.hasTouch()) SETTINGS.readerMenuStyle = CrossPointSettings::READER_MENU_TOOLBAR;  // as the load below
+    SETTINGS.loadFromFile();
+    UITheme::getInstance().reload();
+    setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
+    SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
+    if (!gpio.verifyPowerButtonWakeup()) {
+      halTiltSensor.deepSleep();
+      display.deepSleep();
+      Storage.prepareForDeepSleep();
+      powerManager.startDeepSleep(gpio);
+    }
+    LOG_DBG("MAIN", "Power button held at the end of the settled redraw: waking");
+    wakeupReason = HalGPIO::WakeupReason::PowerButton;
+  }
+#endif
 
   APP_STATE.loadFromFile();
   const bool isSleepWake = wakeupReason == HalGPIO::WakeupReason::PowerButton;
@@ -705,32 +740,6 @@ void setup() {
   LCP_PASSPHRASES.loadFromFile();
   UITheme::getInstance().reload();
 
-#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
-  // Settled sleep redraw: the 5-minute timer armed by enterDeepSleep() fired. Repaint the same own sleep image with a
-  // short clean, in the dark, and go back to deep sleep — power button only now. A press during the repaint is not
-  // lost: the boot then simply goes on as a wake. A button wake before the timer never gets here (the timer dies with
-  // that wake).
-  if (esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER &&
-      sleepRedrawPath[0] != '\0') {
-    const std::string path = sleepRedrawPath;
-    sleepRedrawPath[0] = '\0';
-    LOG_DBG("MAIN", "Settled sleep redraw: %s", path.c_str());
-    setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
-    SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
-    const int8_t pin = BoardConfig::ACTIVE.input.power;
-    const bool pressed =
-        pin >= 0 && digitalRead(pin) == (BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW);
-    if (!pressed) {
-      esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-      halTiltSensor.deepSleep();
-      display.deepSleep();
-      Storage.prepareForDeepSleep();
-      powerManager.startDeepSleep(gpio);
-    }
-    LOG_DBG("MAIN", "Power button during the settled redraw: waking");
-  }
-  sleepRedrawPath[0] = '\0';
-#endif
 
   ButtonNavigator::setMappedInputManager(mappedInputManager);
   pluginevents::refreshSubscriptions();
@@ -770,6 +779,10 @@ void setup() {
       if (!wakeHoldVerified && SETTINGS.shortPwrBtn != CrossPointSettings::SHORT_PWRBTN::SLEEP &&
           !(FREEINK_DEVICE_PICCO && gpio.isUsbConnected())) {
         LOG_DBG("MAIN", "Power-button wake not held through verification, sleeping");
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+        // A brushed button before the 5 minutes ran out: keep the settled sleep redraw (full 5 minutes again).
+        if (sleepRedrawPath[0] != '\0') esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
+#endif
         Storage.prepareForDeepSleep();
         powerManager.startDeepSleep(gpio);
       }
@@ -800,6 +813,9 @@ void setup() {
       break;
   }
 
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+  sleepRedrawPath[0] = '\0';  // a real wake: the pending settled sleep redraw is void
+#endif
   LOG_DBG("MAIN", "Starting CrossPoint version " CROSSPOINT_VERSION);
 
   // Apply a switch moved during sleep before the first paint, so the wake

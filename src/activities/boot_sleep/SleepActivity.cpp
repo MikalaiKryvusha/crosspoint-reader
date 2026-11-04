@@ -774,7 +774,8 @@ bool SleepActivity::redrawCustomImage(GfxRenderer& renderer, MappedInputManager&
   display.setInverted(false);  // the sleep image draws in normal polarity, as in onEnter()
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
   const ScopedCleanup portraitAgain{[&renderer]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
-  deepclean::shortClean(renderer);
+  // The clean is the image path's own white sheet (cleanToWhiteBeforeAbsoluteGray); an image that no longer opens
+  // leaves the glass untouched.
   return painter.renderCustomSleepBmp(path);
 }
 
