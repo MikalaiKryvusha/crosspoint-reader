@@ -60,7 +60,7 @@ void HalFrontlight::begin(const uint8_t brightness, const uint8_t warmth, const 
     manager.setBrightness(0);
     manager.setColorTemperature(warmth > 100 ? 100 : warmth);
     outLevel = 0;
-    startRampLocked(true);
+    startRampLocked(levelFor(lastBrightness), lastBrightness);
   } else {
     // Brightness first: warmth applied at brightness 0 is an off write, which
     // puts the Picco LED driver in standby right before the on write.
@@ -114,9 +114,25 @@ void HalFrontlight::setOutputLevel(const uint8_t level) {
   outLevel = level;
 }
 
-void HalFrontlight::restoreOutput() {
+void HalFrontlight::rampOutputTo(const uint8_t level) {
   if (!manager.present()) return;
   Guard guard(mutex);
+  if (rampTimer != nullptr && rampUs > 0) {
+    startRampLocked(level, -1);
+    return;
+  }
+  cancelRampLocked();
+  manager.setBrightnessLevel(level);
+  outLevel = level;
+}
+
+void HalFrontlight::restoreOutput(const bool smooth) {
+  if (!manager.present()) return;
+  Guard guard(mutex);
+  if (smooth && rampTimer != nullptr && rampUs > 0) {
+    startRampLocked(lit ? levelFor(lastBrightness) : 0, lit ? lastBrightness : 0);
+    return;
+  }
   cancelRampLocked();
   manager.setBrightness(lit ? lastBrightness : 0);
   outLevel = lit ? levelFor(lastBrightness) : 0;
@@ -133,24 +149,28 @@ void HalFrontlight::setOn(const bool on) {
   if (on == lit) return;
   lit = on;
   if (rampTimer != nullptr && rampUs > 0) {
-    startRampLocked(on);
+    startRampLocked(on ? levelFor(lastBrightness) : 0, on ? lastBrightness : 0);
     return;
   }
   manager.setBrightness(lit ? lastBrightness : 0);
   outLevel = lit ? levelFor(lastBrightness) : 0;
 }
 
-void HalFrontlight::startRampLocked(const bool toOn) {
+void HalFrontlight::startRampLocked(const uint8_t toLevel, const int16_t finalPercent) {
   auto* timer = static_cast<esp_timer_handle_t>(rampTimer);
   rampFrom = outLevel;  // from where the LEDs are now: a toggle mid-ramp turns around without a jump
-  rampTo = toOn ? levelFor(lastBrightness) : 0;
-  rampToOn = toOn;
+  rampTo = toLevel;
+  rampFinalPercent = finalPercent;
   rampStartUs = esp_timer_get_time();
   ramping = true;
   esp_timer_stop(timer);  // not running → ESP_ERR_INVALID_STATE, harmless
   if (esp_timer_start_periodic(timer, kRampStepUs) != ESP_OK) {
     ramping = false;  // no timer: switch at once, as on other boards
-    manager.setBrightness(toOn ? lastBrightness : 0);
+    if (finalPercent >= 0) {
+      manager.setBrightness(static_cast<uint8_t>(finalPercent));
+    } else {
+      manager.setBrightnessLevel(toLevel);
+    }
     outLevel = rampTo;
   }
 }
@@ -168,8 +188,12 @@ void HalFrontlight::rampTick(void* self) {
   const int64_t t = esp_timer_get_time() - light.rampStartUs;
   if (t >= light.rampUs || light.rampUs <= 0) {
     light.cancelRampLocked();
-    // End exactly on the saved percent (the SDK's percent curve), not on the nearest level.
-    light.manager.setBrightness(light.rampToOn ? light.lastBrightness : 0);
+    // End exactly on the target: the saved percent (the SDK's percent curve) for on/off, else the raw level.
+    if (light.rampFinalPercent >= 0) {
+      light.manager.setBrightness(static_cast<uint8_t>(light.rampFinalPercent));
+    } else {
+      light.manager.setBrightnessLevel(light.rampTo);
+    }
     light.outLevel = light.rampTo;
     return;
   }

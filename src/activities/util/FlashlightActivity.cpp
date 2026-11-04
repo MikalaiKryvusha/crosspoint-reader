@@ -11,14 +11,14 @@
 void FlashlightActivity::onEnter() {
   Activity::onEnter();
 #ifndef SIMULATOR  // the simulator HAL (external dependency, not ours to edit) has no raw light output
-  Frontlight.setOutputLevel(255);  // full output; the saved brightness and on/off state stay as they are
+  Frontlight.rampOutputTo(255);  // full output over «Плавная подсветка»; saved brightness and on/off untouched
 #endif
   requestUpdate();
 }
 
 void FlashlightActivity::onExit() {
 #ifndef SIMULATOR
-  Frontlight.restoreOutput();
+  Frontlight.restoreOutput(/*smooth=*/true);  // back to the saved brightness (or dark) over the same ramp
 #endif
   Activity::onExit();
 }

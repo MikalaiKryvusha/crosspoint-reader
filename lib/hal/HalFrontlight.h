@@ -26,8 +26,11 @@ class HalFrontlight {
   // write that leaves the saved brightness and the on/off state untouched. 0 = dark.
   uint8_t currentOutputLevel() const;
   void setOutputLevel(uint8_t level);
-  // Back to the saved state after setOutputLevel: the saved brightness when on, dark when off.
-  void restoreOutput();
+  // The same raw output, reached over the «Плавная подсветка» ramp from wherever the LEDs are now (at once when the
+  // ramp is off or unsupported). «Фонарик» enters with it.
+  void rampOutputTo(uint8_t level);
+  // Back to the saved state after setOutputLevel: the saved brightness when on, dark when off. smooth: over the ramp.
+  void restoreOutput(bool smooth = false);
   // Park the PWM pads at the LED-off level and hold them through deep sleep (the saved light state is untouched;
   // begin() releases the hold on the next full boot; the settled-redraw timer path and the SD-error path never call
   // it, so there the pads stay parked — the light stays off).
@@ -49,7 +52,8 @@ class HalFrontlight {
   // The ramp. Every write to the manager goes under `mutex`: the timer task and the main/input tasks share it.
   static void rampTick(void* self);
   static uint8_t levelFor(uint8_t percent);
-  void startRampLocked(bool toOn);
+  // finalPercent ≥ 0: the ramp ends exactly on that percent (SDK percent curve); −1: it ends on the level itself.
+  void startRampLocked(uint8_t toLevel, int16_t finalPercent);
   void cancelRampLocked();
   void* rampTimer = nullptr;  // esp_timer_handle_t, created in begin() on X4 Pro
   void* mutex = nullptr;      // SemaphoreHandle_t
@@ -59,7 +63,7 @@ class HalFrontlight {
   uint8_t rampTo = 0;
   uint8_t outLevel = 0;  // the level on the LEDs now (8-bit perceptual), for a ramp or fade to start from
   bool ramping = false;
-  bool rampToOn = false;
+  int16_t rampFinalPercent = -1;
 
   static HalFrontlight instance;
 };
