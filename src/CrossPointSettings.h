@@ -279,6 +279,10 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // remnant charge of the frames drawn before it has drained: the sleep image 5 min after sleep, a viewer image 2 min
   // after it opened.
   uint8_t sleepSettledRedraw = 1;
+  // Krinik (Nikolai 04.11.2026): how long the frontlight stays on over the fresh sleep image before the reader sleeps
+  // (index into Off / 2 s / 5 s / 10 s; a power-button press in that window wakes the reader).
+  enum SLEEP_LIGHT_LINGER { SLEEP_LIGHT_OFF = 0, SLEEP_LIGHT_2S, SLEEP_LIGHT_5S, SLEEP_LIGHT_10S, SLEEP_LIGHT_COUNT };
+  uint8_t sleepLightLinger = SLEEP_LIGHT_5S;
   uint8_t imageSettledRedraw = 1;
   // Sleep screen cover filter
   uint8_t sleepScreenCoverFilter = NO_FILTER;

@@ -553,13 +553,17 @@ void enterDeepSleep(bool fromTimeout = false) {
   // The light lingers 5 s over the fresh sleep image before it goes dark (Nikolai 04.11.2026: «успеть в темноте
   // насладиться заставкой»). Only when it is on. A new power-button press in that window wakes the reader: rather than
   // unwinding a half-done sleep entry, it sleeps for 10 ms and setup() treats that timer wake as a button wake.
-  if (Frontlight.present() && Frontlight.isOn()) {
+  // Settings → Display → «Подсветка на засыпании»: Off / 2 / 5 / 10 s.
+  static constexpr unsigned long kLingerMs[] = {0, 2000, 5000, 10000};
+  const unsigned long lingerMs =
+      kLingerMs[SETTINGS.sleepLightLinger < CrossPointSettings::SLEEP_LIGHT_COUNT ? SETTINGS.sleepLightLinger : 0];
+  if (lingerMs > 0 && Frontlight.present() && Frontlight.isOn()) {
     const int8_t pin = BoardConfig::ACTIVE.input.power;
     const int pressed = BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW;
     // The press that asked for sleep (hold-to-sleep) may still be down: only a new press, after a release, counts.
     bool released = pin < 0 || digitalRead(pin) != pressed;
     const unsigned long start = millis();
-    while (millis() - start < 5000UL) {
+    while (millis() - start < lingerMs) {
       const bool down = pin >= 0 && digitalRead(pin) == pressed;
       if (!down) released = true;
       if (released && down) {
@@ -682,15 +686,20 @@ void setup() {
   const bool timerWake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
   const bool settledRedrawWake = timerWake && sleepRedrawPath[0] != '\0';
   // The 10 ms sleep after a press during the sleep light linger: an ordinary power-button wake.
-  if (timerWake && lingerWakeRequested) wakeupReason = HalGPIO::WakeupReason::PowerButton;
+  const bool lingerWake = timerWake && lingerWakeRequested;
+  if (lingerWake) wakeupReason = HalGPIO::WakeupReason::PowerButton;
   lingerWakeRequested = false;
+#else
+  const bool lingerWake = false;
 #endif
   // Sample the wake hold now — a click wake is released within milliseconds of
   // boot — but defer the sleep-or-boot decision until SETTINGS is loaded below:
   // click-to-wake is a setting, and an X4 battery power-off cuts all power, so
   // only SD state survives to the next boot.
   // The Metalio boots after the button is released, so it skips the check.
-  const bool wakeHoldVerified = wakeupReason != HalGPIO::WakeupReason::PowerButton || BoardConfig::isMetalioEInk4() ||
+  // A linger wake's press was a deliberate press seen before sleeping; it is usually released by now.
+  const bool wakeHoldVerified = lingerWake || wakeupReason != HalGPIO::WakeupReason::PowerButton ||
+                                BoardConfig::isMetalioEInk4() ||
                                 gpio.verifyPowerButtonWakeup();
 
   // X4 Pro and X4 Classic both map BTN_UP to GPIO0 — an ESP32-S3 boot strap — so
