@@ -506,6 +506,46 @@ bool findNextValidSleepImage(HalFile& dir, const SleepRecentKind recentKind, cha
   return false;
 }
 
+// Sequential sleep images: each sleep shows the next valid image after the last one shown, in
+// path order across both sleep directories, wrapping to the first. The folders are rescanned on
+// every sleep, so added and removed images take effect at once. One pass, no name list in RAM.
+constexpr char SLEEP_LAST_SHOWN_PATH[] = "/.crosspoint/sleep_last.txt";
+
+bool selectNextSleepFileInOrder(const char* firstDirPath, const char* secondDirPath, std::string& selectedPath) {
+  auto name = makeUniqueNoThrow<char[]>(MAX_SLEEP_FILE_NAME_LEN);
+  if (!name) {
+    LOG_ERR("SLP", "OOM: sleep filename buffer");
+    return false;
+  }
+  std::string lastShown;
+  if (Storage.exists(SLEEP_LAST_SHOWN_PATH)) {
+    Storage.readFileToString("SLP", SLEEP_LAST_SHOWN_PATH, MAX_SLEEP_FILE_NAME_LEN + 32, lastShown);
+  }
+
+  std::string first;
+  std::string next;
+  std::string path;
+  for (const char* dirPath : {firstDirPath, secondDirPath}) {
+    auto dir = Storage.open(dirPath);
+    if (!dir || !dir.isDirectory()) continue;
+    while (findNextValidSleepImage(dir, SleepRecentKind::Standard, name.get())) {
+      path = dirPath;
+      path += '/';
+      path += name.get();
+      if (first.empty() || path < first) first = path;
+      if (path > lastShown && (next.empty() || path < next)) next = path;
+    }
+  }
+  if (first.empty()) return false;
+
+  selectedPath = next.empty() ? first : next;
+  Storage.mkdir("/.crosspoint");
+  if (!Storage.writeFile(SLEEP_LAST_SHOWN_PATH, String(selectedPath.c_str()))) {
+    LOG_ERR("SLP", "Failed to save last sleep image");
+  }
+  return true;
+}
+
 bool selectRandomSleepFile(const char* firstDirPath, const char* secondDirPath, const SleepRecentKind recentKind,
                            std::string& selectedPath) {
   auto name = makeUniqueNoThrow<char[]>(MAX_SLEEP_FILE_NAME_LEN);
@@ -803,15 +843,16 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
 }
 
 void SleepActivity::renderCustomSleepScreen() const {
-  // /sleep.bmp on the SD root takes priority over both custom sleep directories.
-  if (renderCustomSleepBmp("/sleep.bmp")) return;
-
+  // The sleep directories take priority over /sleep.bmp: their images rotate in order, one per
+  // sleep; /sleep.bmp is the fallback when they hold no valid image.
   std::string selectedPath;
-  selectRandomSleepFile("/.sleep", "/sleep", SleepRecentKind::Standard, selectedPath);
+  selectNextSleepFileInOrder("/.sleep", "/sleep", selectedPath);
   if (!selectedPath.empty()) {
     delay(100);
     if (renderCustomSleepBmp(selectedPath)) return;
   }
+
+  if (renderCustomSleepBmp("/sleep.bmp")) return;
 
   renderDefaultSleepScreen();
 }
