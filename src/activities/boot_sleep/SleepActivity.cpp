@@ -836,6 +836,8 @@ void SleepActivity::onEnter() {
 
   // Over a gray photo (viewer) the framebuffer holds its B/W draft: the popup over it flashed a harsh black-and-white
   // copy of the photo. Put the popup on a white sheet instead.
+  grayglass::trace("sleep popup: imageOnGlass=%d viewerUnderneath=%d mode=%d", grayglass::imageOnGlass ? 1 : 0,
+                   grayglass::viewerUnderneath ? 1 : 0, static_cast<int>(SETTINGS.sleepScreen));
   if (grayglass::imageOnGlass) renderer.clearScreen(0xFF);
   // Show popup with reader orientation only when going to sleep from reader
   if (APP_STATE.lastSleepFromReader) {

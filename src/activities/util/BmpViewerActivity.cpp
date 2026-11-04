@@ -376,6 +376,8 @@ void BmpViewerActivity::onEnter() {
 
 void BmpViewerActivity::onExit() {
   Activity::onExit();
+  grayglass::trace("viewer onExit: imageOnGlass=%d inverted=%d", grayglass::imageOnGlass ? 1 : 0,
+                   display.isInverted() ? 1 : 0);
   grayglass::imageOnGlass = false;
   grayglass::viewerUnderneath = false;
   renderer.setOrientation(savedOrientation);
