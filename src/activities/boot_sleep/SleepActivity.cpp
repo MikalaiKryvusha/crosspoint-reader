@@ -836,16 +836,21 @@ void SleepActivity::onEnter() {
 
   // Over a gray photo (viewer) the framebuffer holds its B/W draft: the popup over it flashed a harsh black-and-white
   // copy of the photo. Put the popup on a white sheet instead.
-  grayglass::trace("sleep popup: imageOnGlass=%d viewerUnderneath=%d mode=%d", grayglass::imageOnGlass ? 1 : 0,
-                   grayglass::viewerUnderneath ? 1 : 0, static_cast<int>(SETTINGS.sleepScreen));
-  if (grayglass::imageOnGlass) renderer.clearScreen(0xFF);
-  // Show popup with reader orientation only when going to sleep from reader
-  if (APP_STATE.lastSleepFromReader) {
-    ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
-    GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
-    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
-  } else {
-    GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
+  // Over a gray photo (sleep straight from the viewer) no popup: the sleep clean that erases the photo comes right
+  // after, and a popup over it was one more harsh transition of the photo.
+  const bool overGrayPhoto = grayglass::imageOnGlass;
+  grayglass::imageOnGlass = false;
+  grayglass::trace("sleep enter: overGrayPhoto=%d mode=%d", overGrayPhoto ? 1 : 0,
+                   static_cast<int>(SETTINGS.sleepScreen));
+  if (!overGrayPhoto) {
+    // Show popup with reader orientation only when going to sleep from reader
+    if (APP_STATE.lastSleepFromReader) {
+      ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+      GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
+      renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+    } else {
+      GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
+    }
   }
 
   switch (SETTINGS.sleepScreen) {

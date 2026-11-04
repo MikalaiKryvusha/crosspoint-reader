@@ -21,6 +21,7 @@ class BmpViewerActivity final : public Activity {
 
   void onEnter() override;
   void onExit() override;
+  void prepareForSleep() override { goingToSleep = true; }
   void loop() override;
 
  private:
@@ -47,6 +48,7 @@ class BmpViewerActivity final : public Activity {
   uint32_t curveHash = 0;
   bool curveReady = false;
   bool orientationSaved = false;
+  bool goingToSleep = false;  // set before the sleep screen replaces the viewer
   int viewTurns = 0;          // long-tap quarter turns, clockwise
   uint32_t paintedVisit = 0;  // screen visit of the last paint; a newer one means a sheet covered the image
   GfxRenderer::Orientation savedOrientation = GfxRenderer::Orientation::Portrait;

@@ -376,13 +376,18 @@ void BmpViewerActivity::onEnter() {
 
 void BmpViewerActivity::onExit() {
   Activity::onExit();
-  grayglass::trace("viewer onExit: imageOnGlass=%d inverted=%d", grayglass::imageOnGlass ? 1 : 0,
-                   display.isInverted() ? 1 : 0);
-  grayglass::imageOnGlass = false;
+  grayglass::trace("viewer onExit: imageOnGlass=%d sleep=%d", grayglass::imageOnGlass ? 1 : 0, goingToSleep ? 1 : 0);
   grayglass::viewerUnderneath = false;
   renderer.setOrientation(savedOrientation);
   display.setInverted(SETTINGS.screenInverted != 0);
-  deepclean::toWhite(renderer);  // leaving the gray image: the guaranteed clean before the menus
+  if (goingToSleep) {
+    // The sleep screen erases the gray photo with its own clean before the sleep image: one transition, not two
+    // (driving the photo to white here first flashed a harsh copy of it). imageOnGlass stays set so the sleep
+    // screen skips its popup over the photo too.
+    return;
+  }
+  grayglass::imageOnGlass = false;
+  deepclean::toWhite(renderer);  // leaving the gray image: the clean before the menus
 }
 
 void BmpViewerActivity::openSibling(const int delta) {
