@@ -28,10 +28,10 @@
 #include "activities/reader/ReaderUtils.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
-#include "util/DeepClean.h"
-#include "util/PanelCurve.h"
 #include "images/Logo120.h"
 #include "images/MoonIcon.h"
+#include "util/DeepClean.h"
+#include "util/PanelCurve.h"
 
 namespace {
 // Metalio: B/W sleep images use the full 0xF7 waveform instead of HALF (two
@@ -887,7 +887,8 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
       const std::string tmpPath = cachePath + ".tmp";
       HalFile out;
       bool ok = Storage.openFileForWrite("SLP", tmpPath, out) &&
-                BmpToBmpConverter::bmpFileToBmpStream(file, out, crop, thresholds, hasCurve ? curve : nullptr);
+                BmpToBmpConverter::bmpFileToBmpStream(file, out, crop, thresholds, hasCurve ? curve : nullptr,
+                                                      renderer.getScreenWidth(), renderer.getScreenHeight());
       if (out.isOpen()) ok = out.close() && ok;
       ok = ok && Storage.rename(tmpPath.c_str(), cachePath.c_str());
       if (!ok) Storage.remove(tmpPath.c_str());
@@ -912,6 +913,11 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
 }
 
 void SleepActivity::renderCustomSleepScreen() const {
+  // Own sleep images follow the reading orientation of the books (Krinik): an image is kept upright in its own
+  // orientation (a landscape photo as 800x480) and lands 1:1 when the reader is held the way it is read.
+  // The default logo screen stays portrait.
+  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  const ScopedCleanup portraitAgain{[this]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
   // The sleep directories take priority over /sleep.bmp: one image per sleep, in order or at random
   // (Settings → Display → Sleep Image Order); /sleep.bmp is the fallback when they hold no valid image.
   // A file whose header parses but whose pixels do not (truncated, damaged) fails only when drawn: take the
@@ -934,6 +940,7 @@ void SleepActivity::renderCustomSleepScreen() const {
 
   if (renderCustomSleepBmp("/sleep.bmp")) return;
 
+  renderer.setOrientation(GfxRenderer::Orientation::Portrait);
   renderDefaultSleepScreen();
 }
 

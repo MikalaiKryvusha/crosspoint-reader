@@ -32,8 +32,12 @@ class BmpViewerActivity final : public Activity {
   void showMessage(const char* message);
   bool prepareCache(std::string& outPath);
   bool paintBitmap(Bitmap& bitmap);
+  const char* paintCurrent();
   void openSibling(int delta);
   void rotate();
+  // The picture, touches, the control center and messages: the reading orientation, turned by long-tap rotations.
+  GfxRenderer::Orientation drawOrientation() const;
+  GfxRenderer::Orientation holdOrientation() const;
 
   std::string filePath;
   std::vector<std::string> siblingImages;
@@ -43,5 +47,7 @@ class BmpViewerActivity final : public Activity {
   uint32_t curveHash = 0;
   bool curveReady = false;
   bool orientationSaved = false;
+  int viewTurns = 0;          // long-tap quarter turns, clockwise
+  uint32_t paintedVisit = 0;  // screen visit of the last paint; a newer one means a sheet covered the image
   GfxRenderer::Orientation savedOrientation = GfxRenderer::Orientation::Portrait;
 };

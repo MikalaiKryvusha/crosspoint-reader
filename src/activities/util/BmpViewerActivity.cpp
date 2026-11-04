@@ -291,6 +291,7 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
 }
 
 void BmpViewerActivity::showMessage(const char* message) {
+  renderer.setOrientation(holdOrientation());
   display.setInverted(SETTINGS.screenInverted != 0);
   renderer.setRenderMode(GfxRenderer::BW);
   renderer.clearScreen();
@@ -303,6 +304,15 @@ void BmpViewerActivity::showMessage(const char* message) {
 
 void BmpViewerActivity::showCurrent() {
   LOG_DBG("BMP", "Show %d/%d: %s", currentImageIndex + 1, static_cast<int>(siblingImages.size()), filePath.c_str());
+  paintedVisit = activityManager.visit();
+  renderer.setOrientation(drawOrientation());
+  const char* failure = paintCurrent();
+  renderer.setOrientation(holdOrientation());
+  if (failure) showMessage(failure);
+}
+
+// Paints the current image in the draw orientation; returns the message to show on failure.
+const char* BmpViewerActivity::paintCurrent() {
   // No «Загрузка» popup: the current image stays on screen while the next one is prepared, then the deep clean and
   // the gray paint. A popup left a ghost through the gray image, and drawing it over the framebuffer (the B/W draft
   // of the gray image on screen) flashed a harsh black-and-white frame.
@@ -310,23 +320,21 @@ void BmpViewerActivity::showCurrent() {
 
   std::string path;
   if (!prepareCache(path)) {
-    showMessage(FsHelpers::hasBmpExtension(filePath) ? tr(STR_INVALID_BMP_FILE) : tr(STR_FILE_OPEN_FAILED));
-    return;
+    return FsHelpers::hasBmpExtension(filePath) ? tr(STR_INVALID_BMP_FILE) : tr(STR_FILE_OPEN_FAILED);
   }
   HalFile file;
   if (!Storage.openFileForRead("BMP", path, file)) {
-    showMessage(tr(STR_FILE_OPEN_FAILED));
-    return;
+    return tr(STR_FILE_OPEN_FAILED);
   }
   Bitmap bitmap(file);
   const bool cached = path != filePath;
   if (bitmap.parseHeaders() != BmpReaderError::Ok || !paintBitmap(bitmap)) {
     file.close();
     if (cached) Storage.remove(path.c_str());  // a damaged cache is rebuilt on the next visit
-    showMessage(tr(STR_INVALID_BMP_FILE));
-    return;
+    return tr(STR_INVALID_BMP_FILE);
   }
   file.close();
+  return nullptr;
 }
 
 void BmpViewerActivity::onEnter() {
@@ -367,13 +375,34 @@ void BmpViewerActivity::openSibling(const int delta) {
 }
 
 void BmpViewerActivity::rotate() {
-  const auto current = renderer.getOrientation();
+  viewTurns = (viewTurns + 1) % 4;
+  showCurrent();
+}
+
+// One frame for everything: the picture, touches, the control center and messages follow the reading orientation of
+// the books (turned by the long-tap rotations). Images are kept upright in their own orientation, as for sleep.
+GfxRenderer::Orientation BmpViewerActivity::drawOrientation() const { return holdOrientation(); }
+
+GfxRenderer::Orientation BmpViewerActivity::holdOrientation() const {
+  GfxRenderer::Orientation reading = GfxRenderer::Orientation::Portrait;
+  switch (SETTINGS.orientation) {
+    case CrossPointSettings::ORIENTATION::LANDSCAPE_CW:
+      reading = GfxRenderer::Orientation::LandscapeClockwise;
+      break;
+    case CrossPointSettings::ORIENTATION::INVERTED:
+      reading = GfxRenderer::Orientation::PortraitInverted;
+      break;
+    case CrossPointSettings::ORIENTATION::LANDSCAPE_CCW:
+      reading = GfxRenderer::Orientation::LandscapeCounterClockwise;
+      break;
+    default:
+      break;
+  }
   int index = 0;
   for (int i = 0; i < 4; ++i) {
-    if (ROTATION_ORDER[i] == current) index = i;
+    if (ROTATION_ORDER[i] == reading) index = i;
   }
-  renderer.setOrientation(ROTATION_ORDER[(index + 1) % 4]);
-  showCurrent();
+  return ROTATION_ORDER[(index + viewTurns) % 4];
 }
 
 bool BmpViewerActivity::saveJpegSleepCover() {
@@ -485,6 +514,13 @@ void BmpViewerActivity::doSetSleepCover() {
 void BmpViewerActivity::loop() {
   // Keep CPU awake/polling so 1st click works
   Activity::loop();
+
+  // Back from the control center (or any sheet over the image): paint again — its settings (reading orientation,
+  // night mode, touch) may have changed.
+  if (activityManager.visit() != paintedVisit) {
+    showCurrent();
+    return;
+  }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     renderer.setOrientation(savedOrientation);
