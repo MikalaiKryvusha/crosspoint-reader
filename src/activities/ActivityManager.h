@@ -18,7 +18,7 @@
 class Activity;    // forward declaration
 class RenderLock;  // forward declaration
 
-enum class HomeMenuItem { NONE, FILE_BROWSER, LIBRARY, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU };
+enum class HomeMenuItem { NONE, FILE_BROWSER, LIBRARY, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU, MAMA_HEART };
 
 /**
  * ActivityManager
@@ -89,6 +89,9 @@ class ActivityManager {
   void goToUsbDrive();
   // openSection jumps straight into one group (End = the section list).
   void goToSettings(SettingsSection openSection = SettingsSection::End);
+#if KRINIK_MAMA
+  void goToMama();
+#endif
   void goToFileBrowser(std::string path = {});
   void goToLibrary();
   void goToBrowser();

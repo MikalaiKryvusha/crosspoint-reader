@@ -31,6 +31,9 @@
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsListActivity.h"
 #include "util/BmpViewerActivity.h"
+#if KRINIK_MAMA
+#include "util/MamaActivity.h"
+#endif
 #include "util/FrontlightPanelActivity.h"
 #include "util/FullScreenMessageActivity.h"
 
@@ -292,6 +295,10 @@ void ActivityManager::goToUsbDrive() {
   LOG_ERR("ACT", "USB Drive requested in a build without USB Drive capability");
 #endif
 }
+
+#if KRINIK_MAMA
+void ActivityManager::goToMama() { replaceActivity(std::make_unique<MamaActivity>(renderer, mappedInput)); }
+#endif
 
 void ActivityManager::goToSettings(const SettingsSection openSection) {
   replaceActivity(std::make_unique<SettingsListActivity>(renderer, mappedInput, openSection));

@@ -60,5 +60,9 @@ class CoverGridHomeUi final : public UiAppHost {
   freeink::ui::CoverGridProps grid;
   freeink::ui::Rect gridBounds{};
   freeink::ui::TabBarProps tabs;
+#if KRINIK_MAMA
+  std::array<freeink::ui::TabItem, 6> tabItems;
+#else
   std::array<freeink::ui::TabItem, 5> tabItems;
+#endif
 };
