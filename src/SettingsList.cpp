@@ -57,20 +57,6 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Enum(StrId::STR_QUICK_RESUME_TIMEOUT, &CrossPointSettings::quickResumeSleepScreen,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "quickResumeSleepScreen",
                          StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
-                         {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15,
-                          StrId::STR_PAGES_30, StrId::STR_NEVER},
-                         "refreshFrequency", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_HOME_FULL_REFRESH, &CrossPointSettings::homeFullRefresh,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "homeFullRefresh", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_SLEEP_SETTLED_REDRAW, &CrossPointSettings::sleepSettledRedraw,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sleepSettledRedraw", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_IMAGE_SETTLED_REDRAW, &CrossPointSettings::imageSettledRedraw,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "imageSettledRedraw", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_SHEET_CLOSE_CLEAN, &CrossPointSettings::sheetCloseClean,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sheetCloseClean", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_MENU_EXIT_CLEAN, &CrossPointSettings::menuExitClean,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "menuExitClean", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_HIDE_BATTERY, &CrossPointSettings::hideBatteryPercentage,
                          {StrId::STR_NEVER, StrId::STR_IN_READER, StrId::STR_ALWAYS}, "hideBatteryPercentage",
                          StrId::STR_CAT_DISPLAY));
@@ -87,6 +73,20 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   // applies it to every activity), so it lives in the Display category.
   emit(SettingInfo::Toggle(StrId::STR_NIGHT_MODE, &CrossPointSettings::screenInverted, "screenInverted",
                            StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_REFRESH_FREQ, &CrossPointSettings::refreshFrequency,
+                         {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15,
+                          StrId::STR_PAGES_30, StrId::STR_NEVER},
+                         "refreshFrequency", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_HOME_FULL_REFRESH, &CrossPointSettings::homeFullRefresh,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "homeFullRefresh", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_SLEEP_SETTLED_REDRAW, &CrossPointSettings::sleepSettledRedraw,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sleepSettledRedraw", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_IMAGE_SETTLED_REDRAW, &CrossPointSettings::imageSettledRedraw,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "imageSettledRedraw", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_SHEET_CLOSE_CLEAN, &CrossPointSettings::sheetCloseClean,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sheetCloseClean", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_MENU_EXIT_CLEAN, &CrossPointSettings::menuExitClean,
+                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "menuExitClean", StrId::STR_CAT_DISPLAY));
 
   // --- Reader ---
   // Built-in font-family entry. Replaced per-call with a registry-aware
