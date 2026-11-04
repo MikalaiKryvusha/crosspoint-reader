@@ -28,6 +28,7 @@
 #include "activities/reader/ReaderUtils.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/PanelCurve.h"
 #include "images/Logo120.h"
 #include "images/MoonIcon.h"
 
@@ -41,10 +42,23 @@ constexpr auto kSleepClean = HalDisplay::HALF_REFRESH;
 #endif
 
 // The absolute gray paint has no base pass. On Metalio the prior screen shows
-// through it after the panel sits unpowered, so clean with 0xF7 first. The X4 Pro
-// (SSD1677, absolute gray) shows the page text through the sleep image the same way.
+// through it after the panel sits unpowered, so clean with 0xF7 first.
 void cleanBeforeAbsoluteGray(GfxRenderer& renderer) {
-#if FREEINK_DEVICE_METALIO_EINK4 || FREEINK_DEVICE_X4PRO
+#if FREEINK_DEVICE_METALIO_EINK4
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+#else
+  (void)renderer;
+#endif
+}
+
+// X4 Pro (SSD1677, absolute gray): the page text shows through a full-screen sleep image. Clean to
+// white, not to the B/W draft in the framebuffer (that flashes a harsh black-and-white image before
+// the grays). Absolute gray redraws both planes from the image, so the framebuffer is free to wipe.
+void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer) {
+#if FREEINK_DEVICE_X4PRO
+  renderer.clearScreen(0xFF);
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+#elif FREEINK_DEVICE_METALIO_EINK4
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #else
   (void)renderer;
@@ -803,6 +817,10 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
   LOG_DBG("SLP", "Loading: %s", path.c_str());
 
   const bool thresholds = useOriginalCoverThresholds(renderer);
+  // Panel tone curve from the SD card: images are prepared flat, the reader corrects for its screen.
+  uint8_t curve[256];
+  uint32_t curveHash = 0;
+  const bool hasCurve = panelcurve::load(curve, curveHash);
   const bool screenReady = source.getWidth() == renderer.getScreenWidth() &&
                            source.getHeight() == renderer.getScreenHeight() && source.getBpp() <= 2;
   if (!screenReady) {
@@ -812,13 +830,13 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
     const std::string key = path + '|' + std::to_string(file.size()) + '|' + std::to_string(file.modificationTime()) +
                             '|' + std::to_string(renderer.getScreenWidth()) + 'x' +
                             std::to_string(renderer.getScreenHeight()) + (crop ? "|c" : "|f") +
-                            (thresholds ? "|t" : "");
+                            (thresholds ? "|t" : "") + (hasCurve ? "|k" + std::to_string(curveHash) : "");
     const std::string cachePath = "/.crosspoint/sleep_" + std::to_string(std::hash<std::string>{}(key)) + ".bmp";
     if (!Storage.exists(cachePath.c_str())) {
       const std::string tmpPath = cachePath + ".tmp";
       HalFile out;
       bool ok = Storage.openFileForWrite("SLP", tmpPath, out) &&
-                BmpToBmpConverter::bmpFileToBmpStream(file, out, crop, thresholds);
+                BmpToBmpConverter::bmpFileToBmpStream(file, out, crop, thresholds, hasCurve ? curve : nullptr);
       if (out.isOpen()) ok = out.close() && ok;
       ok = ok && Storage.rename(tmpPath.c_str(), cachePath.c_str());
       if (!ok) Storage.remove(tmpPath.c_str());
@@ -922,7 +940,11 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     return;
   }
   if (absolute) {
-    cleanBeforeAbsoluteGray(renderer);
+    if (preserveBackground) {
+      cleanBeforeAbsoluteGray(renderer);
+    } else {
+      cleanToWhiteBeforeAbsoluteGray(renderer);
+    }
     if (!renderer.displayGrayscaleBase(sleepGrayscaleMode(renderer))) return;
   } else if (hasGreyscale) {
     // OEM grayscale pipeline base. Must stay HALF: the gray nudge LUT is

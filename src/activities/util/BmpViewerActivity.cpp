@@ -99,6 +99,22 @@ void BmpViewerActivity::loadSiblingImages() {
   }
 }
 
+namespace {
+// X4 Pro (SSD1677): the factory absolute-gray waveform paints its first stage over whatever the panel
+// shows, which flashes a harsh silhouette before the grays. Clean to white first; the caller redraws
+// the B/W framebuffer after the gray paint.
+void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer, const bool absolute) {
+#if FREEINK_DEVICE_X4PRO
+  if (!absolute) return;
+  renderer.clearScreen(0xFF);
+  renderer.displayBuffer(HalDisplay::FULL_REFRESH);
+#else
+  (void)renderer;
+  (void)absolute;
+#endif
+}
+}  // namespace
+
 bool BmpViewerActivity::canSetSleepCover() const {
   return FsHelpers::hasBmpExtension(filePath) || FsHelpers::hasJpgExtension(filePath) ||
          (overlaySleepMode() && FsHelpers::hasPngExtension(filePath));
@@ -133,6 +149,7 @@ bool BmpViewerActivity::renderImage() {
   }
 
   const bool absolute = renderer.grayscaleCapabilities(HalDisplay::GrayscaleMode::Absolute).supported();
+  cleanToWhiteBeforeAbsoluteGray(renderer, absolute);
   if (absolute && !renderer.displayGrayscaleBase(HalDisplay::GrayscaleMode::Absolute)) return false;
   if (!absolute) renderer.displayGrayscaleBase(HalDisplay::HALF_REFRESH);
   bool ready = true;
@@ -234,6 +251,7 @@ void BmpViewerActivity::onEnter() {
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
       if (bitmap.hasGreyscale()) {
         const bool absolute = renderer.grayscaleCapabilities(HalDisplay::GrayscaleMode::Absolute).supported();
+        cleanToWhiteBeforeAbsoluteGray(renderer, absolute);
         if (absolute && !renderer.displayGrayscaleBase(HalDisplay::GrayscaleMode::Absolute)) return;
         if (!absolute) renderer.displayGrayscaleBase(HalDisplay::HALF_REFRESH);
         bool planesReady = true;
