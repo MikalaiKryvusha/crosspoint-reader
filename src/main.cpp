@@ -621,7 +621,9 @@ void setup() {
   // checkPanic() clears the watchdog capture marker after a successful SD
   // dump, so retain the boot classification for the later activity route.
   const bool rebootedFromPanic = HalSystem::isRebootFromPanic();
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
   bootWasPanic = rebootedFromPanic;
+#endif
 
   // Read-and-clear so a panic later in setup() doesn't loop into silent reboot.
   // Bound the target range too — RTC_NOINIT memory is uninitialized on cold boot.
