@@ -14,6 +14,7 @@
 #include <algorithm>
 
 #include "CrossPointSettings.h"
+#include "activities/reader/ReaderUtils.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -491,28 +492,22 @@ void BmpViewerActivity::loop() {
     return;
   }
 
-  int touchX = 0;
-  int touchY = 0;
-  // Long tap rotates the view by 90°.
-  if (mappedInput.wasScreenLongPress(touchX, touchY)) {
-    rotate();
-    return;
-  }
-
-  const auto swipe = mappedInput.wasSwipe();
-  if (swipe == MappedInputManager::SwipeDir::Left) {
-    openSibling(1);
-    return;
-  }
-  if (swipe == MappedInputManager::SwipeDir::Right) {
-    openSibling(-1);
-    return;
-  }
-
-  // Side taps: left half — previous, right half — next.
-  if (mappedInput.wasScreenTapped(touchX, touchY)) {
-    openSibling(touchX < renderer.getScreenWidth() / 2 ? -1 : 1);
-    return;
+  // Touch follows the book reader's settings: the touch master switch (also in the quick panel), and per direction
+  // tap / swipe / both / inverted tap / off. Touch off — physical buttons only. A long tap (touch on) rotates.
+  if (SETTINGS.touchReaderControls && mappedInput.hasTouch()) {
+    int touchX = 0;
+    int touchY = 0;
+    if (mappedInput.wasScreenLongPress(touchX, touchY)) {
+      LOG_DBG("BMP", "Input: long tap -> rotate");
+      rotate();
+      return;
+    }
+    const auto touch = ReaderUtils::detectTouchPageTurn(renderer, mappedInput);
+    if (touch.next || touch.prev) {
+      LOG_DBG("BMP", "Input: touch %s", touch.next ? "next" : "prev");
+      openSibling(touch.next ? 1 : -1);
+      return;
+    }
   }
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
@@ -534,15 +529,12 @@ void BmpViewerActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Left) ||
-      mappedInput.wasReleased(MappedInputManager::Button::Up)) {
-    openSibling(-1);
-    return;
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Right) ||
-      mappedInput.wasReleased(MappedInputManager::Button::Down)) {
-    openSibling(1);
+  // Buttons as in a book: front Left/Right (swap setting), side page buttons (their layout), power-button and tilt
+  // page turns when enabled.
+  const auto turn = ReaderUtils::detectPageTurn(mappedInput);
+  if (turn.next || turn.prev) {
+    LOG_DBG("BMP", "Input: button %s", turn.next ? "next" : "prev");
+    openSibling(turn.next ? 1 : -1);
     return;
   }
 }
