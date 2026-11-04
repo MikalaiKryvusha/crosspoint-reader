@@ -9,6 +9,7 @@
 #endif
 
 #include <cassert>
+#include <ctime>
 
 #define SDCard SDCardManager::getInstance()
 
@@ -33,7 +34,30 @@ HalStorage::HalStorage() {
 
 // begin() and ready() are only called from setup, no need to acquire mutex for them
 
-bool HalStorage::begin() { return SDCard.begin(); }
+namespace {
+// Krinik (review 04.11.2026): files the firmware writes got no FAT date (no callback), so a file replaced by one of
+// the same size looked unchanged to the image caches (key = path | size | date): an old /sleep.bmp from a plugin,
+// an old photo re-uploaded over the web. Stamp them with the reader's clock; before the clock is set (year < 2024)
+// keep SdFat's fixed default.
+void fatDateTime(uint16_t* date, uint16_t* time, uint8_t* ms10) {
+  const time_t now = ::time(nullptr);
+  struct tm local;
+  if (now < 1704067200 || localtime_r(&now, &local) == nullptr) {
+    *date = FS_DEFAULT_DATE;
+    *time = FS_DEFAULT_TIME;
+    *ms10 = 0;
+    return;
+  }
+  *date = FS_DATE(local.tm_year + 1900, local.tm_mon + 1, local.tm_mday);
+  *time = FS_TIME(local.tm_hour, local.tm_min, local.tm_sec);
+  *ms10 = static_cast<uint8_t>((local.tm_sec & 1) ? 100 : 0);
+}
+}  // namespace
+
+bool HalStorage::begin() {
+  FsDateTime::setCallback(fatDateTime);
+  return SDCard.begin();
+}
 
 bool HalStorage::ready() const { return SDCard.ready(); }
 

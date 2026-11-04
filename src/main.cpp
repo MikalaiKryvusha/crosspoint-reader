@@ -477,6 +477,8 @@ static bool holdSleepWhileUsbPowered() {
 // memory (kept through deep sleep, cleared on power loss).
 static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
 RTC_DATA_ATTR char sleepRedrawPath[192];
+// This boot came from a panic: no unattended timer redraw on the next sleep (no sleep → panic → awake cycle).
+static bool bootWasPanic = false;
 // A power-button press during the settled redraw's repaint, latched so a quick click is not lost.
 static volatile bool settledRedrawPress = false;
 static void IRAM_ATTR onSettledRedrawPress() { settledRedrawPress = true; }
@@ -538,7 +540,7 @@ void enterDeepSleep(bool fromTimeout = false) {
   sleepRedrawPath[0] = '\0';
   // Not on a nearly empty battery: the redraw wakes the reader unasked (review 04.11.2026).
   if (SETTINGS.sleepSettledRedraw && !isQuickResumeSleep && !drawnPath.empty() &&
-      powerManager.getBatteryPercentage() >= 15 &&
+      powerManager.getBatteryPercentage() >= 15 && !bootWasPanic &&
       drawnPath.size() < sizeof(sleepRedrawPath)) {
     memcpy(sleepRedrawPath, drawnPath.c_str(), drawnPath.size() + 1);
     esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
@@ -619,6 +621,7 @@ void setup() {
   // checkPanic() clears the watchdog capture marker after a successful SD
   // dump, so retain the boot classification for the later activity route.
   const bool rebootedFromPanic = HalSystem::isRebootFromPanic();
+  bootWasPanic = rebootedFromPanic;
 
   // Read-and-clear so a panic later in setup() doesn't loop into silent reboot.
   // Bound the target range too — RTC_NOINIT memory is uninitialized on cold boot.

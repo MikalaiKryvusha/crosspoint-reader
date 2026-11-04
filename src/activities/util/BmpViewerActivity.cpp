@@ -497,6 +497,9 @@ bool BmpViewerActivity::saveJpegSleepCover() {
 }
 
 void BmpViewerActivity::doSetSleepCover() {
+  // Runs from a result handler, without the render lock: hold it while this draws and decodes into the shared
+  // framebuffer; released before onEnter(), whose showCurrent() takes it itself (non-recursive).
+  RenderLock lock;
   display.setInverted(SETTINGS.screenInverted != 0);
   renderer.setRenderMode(GfxRenderer::BW);
   renderer.clearScreen(0xFF);
@@ -547,7 +550,7 @@ void BmpViewerActivity::doSetSleepCover() {
   if (success) {
     if (!transparentMode) {
       SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
-      // The sleep folders take priority over /sleep.bmp: «One Image» makes the cover show; In Order / Random in
+      // Sleep Image Order picks the source outright: «One Image» shows /sleep.bmp; In Order / Random in
       // Settings → Display bring the folder rotation back (the folders are not touched).
       SETTINGS.sleepImageOrder = CrossPointSettings::SLEEP_ORDER_SINGLE;
       cachelimit::clear("sleep_");  // a same-size cover would otherwise reuse the previous cover's cache
@@ -561,6 +564,7 @@ void BmpViewerActivity::doSetSleepCover() {
   }
 
   delay(1000);
+  lock.unlock();
   onEnter();
 }
 
