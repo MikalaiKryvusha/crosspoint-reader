@@ -35,7 +35,7 @@ class BmpViewerActivity final : public Activity {
   const char* paintCurrent();
   void openSibling(int delta);
   void rotate();
-  // The picture, touches, the control center and messages: the reading orientation, turned by long-tap rotations.
+  // Picture: reading orientation + long-tap turns. Touches, control center, messages: the reading orientation only.
   GfxRenderer::Orientation drawOrientation() const;
   GfxRenderer::Orientation holdOrientation() const;
 

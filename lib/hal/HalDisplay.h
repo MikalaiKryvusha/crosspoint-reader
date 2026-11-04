@@ -69,6 +69,8 @@ class HalDisplay {
   // Output polarity. The framebuffer remains in normal polarity; inversion is
   // applied by the display driver while sending it to the panel.
   void setInverted(bool inverted);
+  // Polarity switch that keeps the controller baseline (see FreeInkDisplay::setInvertedKeepingPanel).
+  void setInvertedKeepingPanel(bool inverted);
   bool toggleInverted();
   bool isInverted() const;
 

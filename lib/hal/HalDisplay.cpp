@@ -94,6 +94,7 @@ void HalDisplay::refreshDisplay(HalDisplay::RefreshMode mode, bool turnOffScreen
 }
 
 void HalDisplay::setInverted(bool inverted) { einkDisplay.setInverted(inverted); }
+void HalDisplay::setInvertedKeepingPanel(bool inverted) { einkDisplay.setInvertedKeepingPanel(inverted); }
 
 bool HalDisplay::toggleInverted() { return einkDisplay.toggleInverted(); }
 

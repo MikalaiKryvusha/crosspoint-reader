@@ -100,6 +100,19 @@ bool pixelCacheToBmp(const char* pxcPath, const char* bmpPath, const int expecte
 constexpr GfxRenderer::Orientation ROTATION_ORDER[] = {
     GfxRenderer::Orientation::Portrait, GfxRenderer::Orientation::LandscapeCounterClockwise,
     GfxRenderer::Orientation::PortraitInverted, GfxRenderer::Orientation::LandscapeClockwise};
+// Night mode with an image on the glass: the image was painted with the output polarity off (the driver offers no
+// gray while inverted). Re-express the framebuffer for the inverted polarity and switch it back on without forcing a
+// clean refresh — the controller already holds the frame on the panel — so the control center slides in dark over the
+// untouched gray image instead of a light full-screen repaint of the B/W draft.
+void restNightPolarity(GfxRenderer& renderer) {
+  if (SETTINGS.screenInverted == 0) return;
+  renderer.invertScreen();
+#ifdef SIMULATOR
+  display.setInverted(true);
+#else
+  display.setInvertedKeepingPanel(true);
+#endif
+}
 }  // namespace
 
 BmpViewerActivity::BmpViewerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string path)
@@ -256,6 +269,7 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
     renderer.clearScreen();
     if (!draw()) return false;
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+    restNightPolarity(renderer);
     return true;
   }
 
@@ -287,6 +301,7 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   renderer.clearScreen();
   if (!draw()) ready = false;
   renderer.cleanupGrayscaleWithFrameBuffer();
+  if (ready) restNightPolarity(renderer);
   return ready;
 }
 
@@ -379,30 +394,29 @@ void BmpViewerActivity::rotate() {
   showCurrent();
 }
 
-// One frame for everything: the picture, touches, the control center and messages follow the reading orientation of
-// the books (turned by the long-tap rotations). Images are kept upright in their own orientation, as for sleep.
-GfxRenderer::Orientation BmpViewerActivity::drawOrientation() const { return holdOrientation(); }
-
-GfxRenderer::Orientation BmpViewerActivity::holdOrientation() const {
-  GfxRenderer::Orientation reading = GfxRenderer::Orientation::Portrait;
-  switch (SETTINGS.orientation) {
-    case CrossPointSettings::ORIENTATION::LANDSCAPE_CW:
-      reading = GfxRenderer::Orientation::LandscapeClockwise;
-      break;
-    case CrossPointSettings::ORIENTATION::INVERTED:
-      reading = GfxRenderer::Orientation::PortraitInverted;
-      break;
-    case CrossPointSettings::ORIENTATION::LANDSCAPE_CCW:
-      reading = GfxRenderer::Orientation::LandscapeCounterClockwise;
-      break;
-    default:
-      break;
-  }
+// Long taps turn only the picture: it is drawn in the reading orientation turned by them, clockwise. When the global
+// reading orientation changes (control center), the picture follows it and keeps its own turn.
+GfxRenderer::Orientation BmpViewerActivity::drawOrientation() const {
+  const auto reading = holdOrientation();
   int index = 0;
   for (int i = 0; i < 4; ++i) {
     if (ROTATION_ORDER[i] == reading) index = i;
   }
   return ROTATION_ORDER[(index + viewTurns) % 4];
+}
+
+// Touches, swipes, the control center and messages: the global reading orientation, never the long-tap turns.
+GfxRenderer::Orientation BmpViewerActivity::holdOrientation() const {
+  switch (SETTINGS.orientation) {
+    case CrossPointSettings::ORIENTATION::LANDSCAPE_CW:
+      return GfxRenderer::Orientation::LandscapeClockwise;
+    case CrossPointSettings::ORIENTATION::INVERTED:
+      return GfxRenderer::Orientation::PortraitInverted;
+    case CrossPointSettings::ORIENTATION::LANDSCAPE_CCW:
+      return GfxRenderer::Orientation::LandscapeCounterClockwise;
+    default:
+      return GfxRenderer::Orientation::Portrait;
+  }
 }
 
 bool BmpViewerActivity::saveJpegSleepCover() {
