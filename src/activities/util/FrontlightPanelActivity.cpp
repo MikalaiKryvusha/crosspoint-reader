@@ -235,7 +235,9 @@ void FrontlightPanelActivity::toggleLight() {
 
 void FrontlightPanelActivity::close() {
   // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform.
-  if (themeSwitched) deepclean::toWhite(renderer);  // the guaranteed clean; the screen underneath repaints over it
+  // Settings → Display → «Очищать после шторки» (on by default): the guaranteed clean every time the sheet closes;
+  // the screen underneath repaints over it.
+  if (SETTINGS.sheetCloseClean) deepclean::toWhite(renderer);
   finish();
 }
 

@@ -263,6 +263,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t sleepImageOrder = SLEEP_ORDER_SEQUENTIAL;
   // Home opens with a full (flashing) refresh, so it never shows traces of the previous screen.
   uint8_t homeFullRefresh = 0;
+  // Krinik: the guaranteed clean (scrub to black, then white) every time the control center closes.
+  uint8_t sheetCloseClean = 1;
   // Sleep screen cover filter
   uint8_t sleepScreenCoverFilter = NO_FILTER;
   // Status bar settings
