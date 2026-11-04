@@ -477,6 +477,9 @@ static bool holdSleepWhileUsbPowered() {
 // memory (kept through deep sleep, cleared on power loss).
 static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
 RTC_DATA_ATTR char sleepRedrawPath[192];
+// A power-button press during the 5-second light linger at sleep entry: the reader sleeps for 10 ms and this flag makes
+// that timer wake an ordinary power-button wake (Nikolai 04.11.2026: «нажатие в эти 5 секунд должно разбудить»).
+RTC_DATA_ATTR bool lingerWakeRequested = false;
 // This boot came from a panic: no unattended timer redraw on the next sleep (no sleep → panic → awake cycle).
 static bool bootWasPanic = false;
 // A power-button press during the settled redraw's repaint, latched so a quick click is not lost.
@@ -545,6 +548,29 @@ void enterDeepSleep(bool fromTimeout = false) {
     memcpy(sleepRedrawPath, drawnPath.c_str(), drawnPath.size() + 1);
     esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
     LOG_DBG("MAIN", "Sleep redraw armed in 5 min: %s", sleepRedrawPath);
+  }
+
+  // The light lingers 5 s over the fresh sleep image before it goes dark (Nikolai 04.11.2026: «успеть в темноте
+  // насладиться заставкой»). Only when it is on. A new power-button press in that window wakes the reader: rather than
+  // unwinding a half-done sleep entry, it sleeps for 10 ms and setup() treats that timer wake as a button wake.
+  if (Frontlight.present() && Frontlight.isOn()) {
+    const int8_t pin = BoardConfig::ACTIVE.input.power;
+    const int pressed = BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW;
+    // The press that asked for sleep (hold-to-sleep) may still be down: only a new press, after a release, counts.
+    bool released = pin < 0 || digitalRead(pin) != pressed;
+    const unsigned long start = millis();
+    while (millis() - start < 5000UL) {
+      const bool down = pin >= 0 && digitalRead(pin) == pressed;
+      if (!down) released = true;
+      if (released && down) {
+        LOG_DBG("MAIN", "Power button during the sleep light linger: waking");
+        sleepRedrawPath[0] = '\0';  // no settled redraw: the reader is waking
+        lingerWakeRequested = true;
+        esp_sleep_enable_timer_wakeup(10 * 1000);
+        break;
+      }
+      delay(20);
+    }
   }
 #endif
 
@@ -653,8 +679,11 @@ void setup() {
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
   // The settled sleep redraw's 5-minute timer fired (armed by enterDeepSleep(), path in RTC memory). getWakeupReason()
   // reports this boot as Other; it is handled below, before anything else draws.
-  const bool settledRedrawWake = esp_reset_reason() == ESP_RST_DEEPSLEEP &&
-                                 esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && sleepRedrawPath[0] != '\0';
+  const bool timerWake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
+  const bool settledRedrawWake = timerWake && sleepRedrawPath[0] != '\0';
+  // The 10 ms sleep after a press during the sleep light linger: an ordinary power-button wake.
+  if (timerWake && lingerWakeRequested) wakeupReason = HalGPIO::WakeupReason::PowerButton;
+  lingerWakeRequested = false;
 #endif
   // Sample the wake hold now — a click wake is released within milliseconds of
   // boot — but defer the sleep-or-boot decision until SETTINGS is loaded below:

@@ -11,7 +11,7 @@
 
 #include "HalGPIO.h"
 
-#if FREEINK_DEVICE_EEGO_A4 || FREEINK_DEVICE_PICCO
+#if FREEINK_DEVICE_EEGO_A4 || FREEINK_DEVICE_PICCO || FREEINK_DEVICE_X4PRO
 #include <HalFrontlight.h>
 #endif
 
@@ -87,6 +87,12 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio, const bool wakeOnHeldButton)
   // releases the bus. On Picco this also puts the TMA525C to sleep.
   Frontlight.setOn(false);
   gpio.prepareForDeepSleep();
+#endif
+#if FREEINK_DEVICE_X4PRO
+  // Krinik (review 04.11.2026): the SDK asks every board to park the frontlight before deep sleep, and nothing did on
+  // the X4 Pro — under gpio isolation the PWM pads float, so a light on at sleep could stay lit. Its touch needs no
+  // command: powerDownRailsForSleep() below cuts the GT911 rail (GPIO2) and the SD rail (GPIO5).
+  Frontlight.prepareForDeepSleep();
 #endif
 #ifdef ENABLE_SERIAL_LOG
   // Tear down HWCDC so the host sees a clean disconnect and the peripheral
