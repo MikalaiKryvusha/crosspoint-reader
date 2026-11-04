@@ -239,7 +239,13 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
 bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   grayglass::imageOnGlass = false;
   // Gray needs normal output polarity (the driver offers no grayscale while inverted), as the sleep screen does.
+  // Switch it without repainting the panel: a plain setInverted() in night mode made the next gray pass first repaint
+  // the framebuffer — the B/W draft of the photo on screen — a harsh high-contrast flash of it (04.11.2026).
+#ifdef SIMULATOR
   display.setInverted(false);
+#else
+  display.setInvertedKeepingPanel(false);
+#endif
   const int pageWidth = renderer.getScreenWidth();
   const int pageHeight = renderer.getScreenHeight();
   const int x = std::max(0, (pageWidth - bitmap.getWidth()) / 2);
@@ -276,7 +282,9 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   }
 
   if (absolute) {
-    deepclean::toWhite(renderer);
+    // No clean before the gray (time, not cleans, removes ghosts) — but wipe the framebuffer in memory: it holds the
+    // B/W draft of the photo on screen, and any B/W paint the gray pass falls back to must be white, not that draft.
+    renderer.clearScreen(0xFF);
     if (!renderer.displayGrayscaleBase(HalDisplay::GrayscaleMode::Absolute)) return false;
   } else {
     renderer.clearScreen();

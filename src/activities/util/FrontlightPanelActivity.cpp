@@ -13,6 +13,7 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
+#include "activities/RenderLock.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
 #include "components/icons/customListIcons.h"
@@ -151,6 +152,7 @@ void FrontlightPanelActivity::runTile(const int idx) {
       SETTINGS.screenInverted = SETTINGS.screenInverted ? 0 : 1;
       SETTINGS.saveToFile();
       themeSwitched = true;  // Nikolai 04.11.2026: any theme switch → a FULL clean once the sheet closes
+      themeApplying = true;  // no close until the sheet is repainted in the new theme
       // Over the photo viewer the framebuffer holds a picture, not UI: re-express it for the new polarity so the
       // visible part under the sheet stays positive (the sheet redraws its own area; the viewer repaints on close).
       if (grayglass::viewerUnderneath) renderer.invertScreen();
@@ -234,11 +236,19 @@ void FrontlightPanelActivity::toggleLight() {
 }
 
 void FrontlightPanelActivity::close() {
-  // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform.
-  // Settings → Display → «Очищать после шторки» (on by default): the guaranteed clean every time the sheet closes;
-  // the screen underneath repaints over it.
-  // Not over the photo viewer: it repaints with its own clean (a second one here only added a cycle and a ghost).
-  if (SETTINGS.sheetCloseClean && !grayglass::viewerUnderneath) deepclean::shortClean(renderer);
+  // The new theme is not on screen yet: ignore the close (Nikolai 04.11.2026). A quick close during the sheet's
+  // theme repaint let that repaint consume the FULL promotion below, and the home screen came back with a fast
+  // paint — the sheet printed into it.
+  if (themeApplying) return;
+  RenderLock lock;
+  // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform —
+  // always, whatever «Очищать после шторки» says.
+  if (themeSwitched) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+  // Settings → Display → «Очищать после шторки» (off by default): a short clean every time the sheet closes; the
+  // screen underneath repaints over it. Not over the photo viewer (it repaints itself), not after a theme switch
+  // (the FULL repaint above is the clean).
+  if (SETTINGS.sheetCloseClean && !themeSwitched && !grayglass::viewerUnderneath) deepclean::shortClean(renderer);
+  lock.unlock();
   finish();
 }
 
@@ -476,4 +486,5 @@ void FrontlightPanelActivity::render(RenderLock&&) {
   }
   cleanRefreshPending = false;
   traced = true;
+  themeApplying = false;  // the sheet is on screen in the current theme: closing is allowed again
 }

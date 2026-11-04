@@ -58,7 +58,10 @@ void cleanBeforeAbsoluteGray(GfxRenderer& renderer) {
 // the grays). Absolute gray redraws both planes from the image, so the framebuffer is free to wipe.
 void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
-  deepclean::toWhite(renderer);  // also erases the menu header ghost (~1 cm from the top)
+  // No clean before the gray (time removes ghosts; the 5-minute settled redraw does the clean). Wipe the framebuffer
+  // in memory only: any B/W paint the gray pass falls back to (night mode's polarity switch) must be a plain white
+  // sheet, not the harsh B/W draft of the sleep image (04.11.2026).
+  renderer.clearScreen(0xFF);
 #elif FREEINK_DEVICE_METALIO_EINK4
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #else

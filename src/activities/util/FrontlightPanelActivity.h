@@ -1,5 +1,7 @@
 #pragma once
 
+#include <atomic>
+
 #include "CrossPointSettings.h"
 #include "activities/Activity.h"
 #include "components/UiAppHost.h"
@@ -70,6 +72,9 @@ class FrontlightPanelActivity final : public Activity, private UiAppHost {
   // instead (GfxRenderer::promoteNextRefresh).
   bool cleanRefreshPending = false;
   bool themeSwitched = false;  // night mode toggled while open → FULL clean on close
+  // Night mode toggled and its repaint of the sheet not finished yet: close is ignored until it is (Nikolai
+  // 04.11.2026 — a quick close printed the sheet into the home screen). Set by the input loop, cleared by render().
+  std::atomic<bool> themeApplying{false};
   bool traced = false;         // first-frame path written to the shade trace
 
  public:

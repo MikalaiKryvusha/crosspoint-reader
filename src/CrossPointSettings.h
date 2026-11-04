@@ -264,7 +264,8 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // Home opens with a full (flashing) refresh, so it never shows traces of the previous screen.
   uint8_t homeFullRefresh = 0;
   // Krinik: a short clean every time the control center closes over the menus («Clean After Control Center»).
-  uint8_t sheetCloseClean = 1;
+  // Off by default (Nikolai 04.11.2026).
+  uint8_t sheetCloseClean = 0;
   // Krinik: a short clean when leaving a viewer image for the menus («Redraw Menus»).
   uint8_t menuExitClean = 1;
   // Krinik (X4 Pro, 04.11.2026): settled redraws — the gray image is repainted once with a short clean after the
