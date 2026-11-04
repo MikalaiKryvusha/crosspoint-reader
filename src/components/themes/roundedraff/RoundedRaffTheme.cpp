@@ -138,7 +138,7 @@ void RoundedRaffTheme::drawRecentBookCover(GfxRenderer& renderer, Rect rect, con
 }
 
 int RoundedRaffTheme::getMenuRowHeight(const GfxRenderer& renderer) const {
-  return renderer.getLineHeight(kTitleFontId) + 20;  // 10px top + 10px bottom
+  return renderer.getLineHeight(kTitleFontId) + 16;  // 8px top + 8px bottom (krinik: was 10 + 10)
 }
 
 void RoundedRaffTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,

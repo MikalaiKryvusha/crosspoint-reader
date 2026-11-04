@@ -34,7 +34,7 @@ constexpr ThemeMetrics values = {.batteryWidth = 16,
                                  .headerTitleAlign = 0,  // left
                                  .headerBatterySide = 0,
                                  .headerClockCentered = false,
-                                 .menuRowHeight = 64,
+                                 .menuRowHeight = 60,  // krinik: 2 px less top and bottom (64), room for «Фонарик»
                                  .menuSpacing = 8,
                                  .tabSpacing = 8,
                                  .tabBarHeight = 48,

@@ -181,7 +181,7 @@ constexpr ThemeMetrics values = {.batteryWidth = 15,
                                  .headerBatterySide = 0,
                                  // Corner clock: a centered clock would collide with the centered title.
                                  .headerClockCentered = false,
-                                 .menuRowHeight = 45,
+                                 .menuRowHeight = 41,  // krinik: 2 px less top and bottom (45)
                                  .menuSpacing = 8,
                                  .tabSpacing = 10,
                                  .tabBarHeight = 50,
