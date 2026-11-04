@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <utility>
 
 #include "MappedInputManager.h"
 #include "activities/Activity.h"
@@ -30,6 +31,7 @@ class BmpViewerActivity final : public Activity {
   void doSetSleepCover();
   bool canSetSleepCover() const;
   bool saveJpegSleepCover();
+  void parkSleepFolders();
   void showCurrent();
   void showMessage(const char* message);
   bool prepareCache(std::string& outPath);

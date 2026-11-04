@@ -22,7 +22,8 @@ class SleepActivity final : public Activity {
   void renderCustomSleepScreen() const;
   bool renderCustomSleepBmp(const std::string& path) const;
   void renderCoverSleepScreen() const;
-  void renderBitmapSleepScreen(const Bitmap& bitmap, bool preserveBackground = false) const;
+  // False when the image could not be drawn completely (pixel read error, gray pass refused).
+  bool renderBitmapSleepScreen(const Bitmap& bitmap, bool preserveBackground = false) const;
   bool renderSleepOverlayFile(HalFile& file, const char* pathForLog) const;
   bool renderTransparentOverlayPng(const std::string& path) const;
   bool renderSleepOverlayPath(const std::string& path) const;

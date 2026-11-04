@@ -18,6 +18,7 @@
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "util/CacheLimit.h"
 #include "util/DeepClean.h"
 #include "util/GrayGlass.h"
 #include "util/PanelCurve.h"
@@ -227,6 +228,7 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
     Storage.remove(VIEW_TMP_PXC);
   }
   ok = ok && Storage.rename(tmpPath.c_str(), outPath.c_str());
+  if (ok) cachelimit::remember("view_", outPath.c_str(), cachelimit::VIEWER_CACHE_FILES);
   if (!ok) {
     Storage.remove(tmpPath.c_str());
     LOG_ERR("BMP", "Viewer cache failed for %s", filePath.c_str());
@@ -494,6 +496,22 @@ bool BmpViewerActivity::saveJpegSleepCover() {
   return true;
 }
 
+// The sleep folders take priority over /sleep.bmp (SleepActivity::renderCustomSleepScreen). A cover set from here must
+// show, so the folders are parked out of the way (Nikolai 04.11.2026): /sleep → /_sleep, /.sleep → /_.sleep. Renaming
+// them back brings the rotation back. A viewer opened from a parked folder follows it.
+void BmpViewerActivity::parkSleepFolders() {
+  for (const auto& [from, to] : {std::pair<const char*, const char*>{"/sleep", "/_sleep"}, {"/.sleep", "/_.sleep"}}) {
+    if (!Storage.exists(from)) continue;
+    if (Storage.exists(to) || !Storage.rename(from, to)) {
+      LOG_ERR("BMP", "Could not park %s as %s", from, to);
+      continue;
+    }
+    LOG_DBG("BMP", "Sleep folder parked: %s -> %s", from, to);
+    const std::string prefix = std::string(from) + "/";
+    if (filePath.rfind(prefix, 0) == 0) filePath = std::string(to) + "/" + filePath.substr(prefix.size());
+  }
+}
+
 void BmpViewerActivity::doSetSleepCover() {
   display.setInverted(SETTINGS.screenInverted != 0);
   renderer.setRenderMode(GfxRenderer::BW);
@@ -510,9 +528,10 @@ void BmpViewerActivity::doSetSleepCover() {
   bool success = filePath == destination;
 
   if (jpeg) {
-    // The sleep screen is portrait whatever the viewer's rotation.
+    // Own sleep images draw in the reading orientation (SleepActivity::renderCustomSleepScreen): prepare the cover in
+    // it, not in portrait, so it lands 1:1.
     const auto viewOrientation = renderer.getOrientation();
-    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+    ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
     success = saveJpegSleepCover();
     renderer.setOrientation(viewOrientation);
   } else if (!success) {
@@ -542,7 +561,10 @@ void BmpViewerActivity::doSetSleepCover() {
   }
 
   if (success) {
-    if (!transparentMode) SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
+    if (!transparentMode) {
+      SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
+      parkSleepFolders();
+    }
     SETTINGS.saveToFile();
     renderer.clearScreen(0xFF);
     GUI.drawPopup(renderer, tr(STR_DONE));

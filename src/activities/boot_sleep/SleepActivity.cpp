@@ -30,6 +30,7 @@
 #include "fontIds.h"
 #include "images/Logo120.h"
 #include "images/MoonIcon.h"
+#include "util/CacheLimit.h"
 #include "util/DeepClean.h"
 #include "util/GrayGlass.h"
 #include "util/PanelCurve.h"
@@ -774,9 +775,15 @@ bool SleepActivity::redrawCustomImage(GfxRenderer& renderer, MappedInputManager&
   display.setInverted(false);  // the sleep image draws in normal polarity, as in onEnter()
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
   const ScopedCleanup portraitAgain{[&renderer]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
-  // The clean is the image path's own white sheet (cleanToWhiteBeforeAbsoluteGray); an image that no longer opens
-  // leaves the glass untouched.
-  return painter.renderCustomSleepBmp(path);
+  // The clean is the image path's own white sheet (cleanToWhiteBeforeAbsoluteGray). An image that no longer opens
+  // leaves the glass untouched; one that fails mid-draw (after the white sheet) falls back to the default sleep
+  // screen rather than leaving a blank page.
+  if (painter.renderCustomSleepBmp(path)) return true;
+  if (Storage.exists(path.c_str())) {
+    renderer.setOrientation(GfxRenderer::Orientation::Portrait);
+    painter.renderDefaultSleepScreen();
+  }
+  return false;
 }
 
 void SleepActivity::onEnter() {
@@ -875,15 +882,13 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
                                                       renderer.getScreenWidth(), renderer.getScreenHeight());
       if (out.isOpen()) ok = out.close() && ok;
       ok = ok && Storage.rename(tmpPath.c_str(), cachePath.c_str());
+      if (ok) cachelimit::remember("sleep_", cachePath.c_str(), cachelimit::SLEEP_CACHE_FILES);
       if (!ok) Storage.remove(tmpPath.c_str());
     }
     HalFile cached;
     if (Storage.openFileForRead("SLP", cachePath, cached)) {
       Bitmap bitmap(cached);
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
-        renderBitmapSleepScreen(bitmap);
-        return true;
-      }
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) return renderBitmapSleepScreen(bitmap);
       cached.close();
       Storage.remove(cachePath.c_str());
     }
@@ -892,8 +897,7 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
 
   Bitmap bitmap(file, true, thresholds);
   if (bitmap.parseHeaders() != BmpReaderError::Ok) return false;
-  renderBitmapSleepScreen(bitmap);
-  return true;
+  return renderBitmapSleepScreen(bitmap);
 }
 
 void SleepActivity::renderCustomSleepScreen() const {
@@ -955,7 +959,7 @@ void SleepActivity::renderDefaultSleepScreen() const {
   renderer.displayBuffer(kSleepClean);
 }
 
-void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preserveBackground) const {
+bool SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool preserveBackground) const {
   const auto pageWidth = renderer.getScreenWidth();
   const auto pageHeight = renderer.getScreenHeight();
   const auto placement = calculateBitmapPlacement(bitmap.getWidth(), bitmap.getHeight(), renderer);
@@ -974,7 +978,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
 
   if (!renderer.drawBitmap(bitmap, x, y, pageWidth, pageHeight, cropX, cropY, preserveBackground)) {
     renderer.displayBuffer(kSleepClean);
-    return;
+    return false;
   }
 
   if (!preserveBackground &&
@@ -989,14 +993,14 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     }
     renderTransparentCustomSleepScreen();
     overlayGrayCover = nullptr;
-    return;
+    return true;
   }
 
   const bool absolute = hasGreyscale && renderer.grayscaleCapabilities(sleepGrayscaleMode(renderer)).supported();
   const BwFrameKeeper bwFrame(renderer, hasGreyscale && !absolute);
   if (!bwFrame.ready()) {
     renderer.displayBuffer(kSleepClean);
-    return;
+    return false;
   }
   if (absolute) {
     if (preserveBackground) {
@@ -1004,7 +1008,7 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     } else {
       cleanToWhiteBeforeAbsoluteGray(renderer);
     }
-    if (!renderer.displayGrayscaleBase(sleepGrayscaleMode(renderer))) return;
+    if (!renderer.displayGrayscaleBase(sleepGrayscaleMode(renderer))) return false;
   } else if (hasGreyscale) {
     // OEM grayscale pipeline base. Must stay HALF: the gray nudge LUT is
     // calibrated against the pixel state the single-pass HALF waveform leaves
@@ -1045,7 +1049,9 @@ void SleepActivity::renderBitmapSleepScreen(const Bitmap& bitmap, const bool pre
     else
       LOG_ERR("SLP", "Incomplete grayscale image; keeping the current display");
     renderer.setRenderMode(GfxRenderer::BW);
+    return ready;
   }
+  return true;
 }
 
 bool SleepActivity::renderSleepOverlayFile(HalFile& file, const char* pathForLog) const {
@@ -1144,7 +1150,10 @@ void SleepActivity::renderTransparentCustomSleepScreen() const {
     // Show the plain cover.
     const Bitmap& cover = *overlayCover;
     overlayCover = nullptr;
-    if (cover.rewindToData() == BmpReaderError::Ok) return renderBitmapSleepScreen(cover);
+    if (cover.rewindToData() == BmpReaderError::Ok) {
+      renderBitmapSleepScreen(cover);
+      return;
+    }
   }
   renderDefaultSleepScreen();
 }
