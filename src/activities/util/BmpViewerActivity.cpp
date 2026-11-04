@@ -522,7 +522,9 @@ void BmpViewerActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+  // As on the book reading surface: no left-edge swipe-to-exit here — in swipe mode a right swipe pages back. The
+  // physical Back button exits; the Home gesture/key stays available.
+  if (!mappedInput.wasBackGesture() && mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     renderer.setOrientation(savedOrientation);
     activityManager.goToFileBrowser(filePath);
     return;
