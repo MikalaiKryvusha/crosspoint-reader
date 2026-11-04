@@ -762,6 +762,19 @@ void releaseSdFontCachesForDecode(const GfxRenderer& renderer) {
   }
 }
 
+// Settings → Display → «Sleep Image Orientation»: a fixed orientation, or «By Image» — a tall image in portrait, a
+// wide one in the panel's native landscape (counter-clockwise). Without an image yet (bitmap null) «By Image» starts
+// in portrait; renderCustomSleepBmp decides once the header is read.
+void applySleepOrientation(GfxRenderer& renderer, const Bitmap* bitmap) {
+  if (SETTINGS.sleepOrientation != CrossPointSettings::SLEEP_ORIENTATION_BY_IMAGE) {
+    ReaderUtils::applyOrientation(renderer, SETTINGS.sleepOrientation);
+    return;
+  }
+  const bool wide = bitmap != nullptr && bitmap->getWidth() > bitmap->getHeight();
+  renderer.setOrientation(wide ? GfxRenderer::Orientation::LandscapeCounterClockwise
+                               : GfxRenderer::Orientation::Portrait);
+}
+
 // The own sleep image drawn by the last sleep (empty: none), for the settled redraw.
 std::string lastCustomSleepPath;
 
@@ -773,7 +786,7 @@ bool SleepActivity::redrawCustomImage(GfxRenderer& renderer, MappedInputManager&
   // A painter instance only for the const render helpers (the constructor has no side effects).
   const SleepActivity painter(renderer, mappedInput);
   display.setInverted(false);  // the sleep image draws in normal polarity, as in onEnter()
-  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  applySleepOrientation(renderer, nullptr);
   const ScopedCleanup portraitAgain{[&renderer]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
   // The clean is the image path's own white sheet (cleanToWhiteBeforeAbsoluteGray). A deleted image leaves the glass
   // untouched. When the file is still there but the repaint failed, the default sleep screen is drawn — a failure
@@ -860,6 +873,7 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
   Bitmap source(file);
   if (source.parseHeaders() != BmpReaderError::Ok) return false;
   LOG_DBG("SLP", "Loading: %s", path.c_str());
+  applySleepOrientation(renderer, &source);  // «By Image»: the image's own shape decides
 
   const bool thresholds = useOriginalCoverThresholds(renderer);
   // Panel tone curve from the SD card: images are prepared flat, the reader corrects for its screen.
@@ -910,10 +924,10 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
 }
 
 void SleepActivity::renderCustomSleepScreen() const {
-  // Own sleep images follow the reading orientation of the books (Krinik): an image is kept upright in its own
-  // orientation (a landscape photo as 800x480) and lands 1:1 when the reader is held the way it is read.
+  // Own sleep images draw in Settings → Display → «Sleep Image Orientation» (Krinik 04.11.2026), not the book's
+  // reading orientation: an image prepared for it (800x480 for landscape, 480x800 for portrait) lands 1:1.
   // The default logo screen stays portrait.
-  ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+  applySleepOrientation(renderer, nullptr);
   const ScopedCleanup portraitAgain{[this]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
   // Settings → Display → Sleep Image Order decides the source outright — no silent fallback between them (Nikolai
   // 04.11.2026): In Order / Random — only the sleep folders (/sleep, /.sleep), one image per sleep; One Image — only

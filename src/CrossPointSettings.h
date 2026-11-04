@@ -334,6 +334,12 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // EPUB reading orientation settings
   // 0 = portrait (default), 1 = landscape clockwise, 2 = inverted, 3 = landscape counter-clockwise
   uint8_t orientation = PORTRAIT;
+  // Krinik (Nikolai 04.11.2026): own sleep images have their own orientation, independent of the book's — reading
+  // orientation changes often, the sleep image should not follow it. Values 0-3 as ORIENTATION (fixed); 4 «By Image»
+  // (default): images are stored upright for a person, so a tall image shows in portrait and a wide one in the
+  // panel's native landscape (800x480, the reader turned counter-clockwise from portrait).
+  static constexpr uint8_t SLEEP_ORIENTATION_BY_IMAGE = 4;
+  uint8_t sleepOrientation = SLEEP_ORIENTATION_BY_IMAGE;
   // Button layouts (front layout retained for migration only)
   uint8_t frontButtonLayout = BACK_CONFIRM_LEFT_RIGHT;
   uint8_t sideButtonLayout = PREV_NEXT;

@@ -44,6 +44,11 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "homeFullRefresh", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SLEEP_SETTLED_REDRAW, &CrossPointSettings::sleepSettledRedraw,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sleepSettledRedraw", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(
+      StrId::STR_SLEEP_ORIENTATION, &CrossPointSettings::sleepOrientation,
+      {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_ORIENTATION_INVERTED, StrId::STR_LANDSCAPE_CCW,
+       StrId::STR_SLEEP_ORIENTATION_BY_IMAGE},
+      "sleepOrientation", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SLEEP_LIGHT_LINGER, &CrossPointSettings::sleepLightLinger,
                          {StrId::STR_STATE_OFF, StrId::STR_SECONDS_2, StrId::STR_SECONDS_5, StrId::STR_SECONDS_10},
                          "sleepLightLinger", StrId::STR_CAT_DISPLAY));

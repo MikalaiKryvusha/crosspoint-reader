@@ -515,10 +515,13 @@ void BmpViewerActivity::doSetSleepCover() {
   bool success = filePath == destination;
 
   if (jpeg) {
-    // Own sleep images draw in the reading orientation (SleepActivity::renderCustomSleepScreen): prepare the cover in
-    // it, not in portrait, so it lands 1:1.
+    // Own sleep images draw in the sleep image orientation (SleepActivity::renderCustomSleepScreen): prepare the cover
+    // in it so it lands 1:1.
     const auto viewOrientation = renderer.getOrientation();
-    ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
+    // «By Image» (value 4): the cover is drawn in the viewer's current orientation, so its shape matches the photo.
+    if (SETTINGS.sleepOrientation != CrossPointSettings::SLEEP_ORIENTATION_BY_IMAGE) {
+      ReaderUtils::applyOrientation(renderer, SETTINGS.sleepOrientation);
+    }
     success = saveJpegSleepCover();
     renderer.setOrientation(viewOrientation);
   } else if (!success) {
