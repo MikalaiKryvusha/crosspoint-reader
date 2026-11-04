@@ -150,6 +150,9 @@ void FrontlightPanelActivity::runTile(const int idx) {
       SETTINGS.screenInverted = SETTINGS.screenInverted ? 0 : 1;
       SETTINGS.saveToFile();
       themeSwitched = true;  // Nikolai 04.11.2026: any theme switch → a FULL clean once the sheet closes
+      // Over the photo viewer the framebuffer holds a picture, not UI: re-express it for the new polarity so the
+      // visible part under the sheet stays positive (the sheet redraws its own area; the viewer repaints on close).
+      if (grayglass::viewerUnderneath) renderer.invertScreen();
       // Inversion rewrites every pixel; take the clean waveform so the panel
       // does not keep a ghost of the old polarity.
       cleanRefreshPending = true;

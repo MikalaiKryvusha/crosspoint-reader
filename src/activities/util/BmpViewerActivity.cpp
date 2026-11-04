@@ -367,6 +367,7 @@ void BmpViewerActivity::onEnter() {
     panelcurve::load(curve, curveHash);
     curveReady = true;
   }
+  grayglass::viewerUnderneath = true;
   if (siblingImages.empty() && !filePath.empty()) {
     loadSiblingImages();
   }
@@ -376,6 +377,7 @@ void BmpViewerActivity::onEnter() {
 void BmpViewerActivity::onExit() {
   Activity::onExit();
   grayglass::imageOnGlass = false;
+  grayglass::viewerUnderneath = false;
   renderer.setOrientation(savedOrientation);
   display.setInverted(SETTINGS.screenInverted != 0);
   renderer.clearScreen();

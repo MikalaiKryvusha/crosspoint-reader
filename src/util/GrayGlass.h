@@ -5,6 +5,8 @@
 // flashes. Cleared when the screen under it is repainted in B/W.
 namespace grayglass {
 extern bool imageOnGlass;
+// The photo viewer is the screen under any sheet (its framebuffer holds the B/W draft of a picture, not UI).
+extern bool viewerUnderneath;
 }  // namespace grayglass
 
 namespace grayglass {

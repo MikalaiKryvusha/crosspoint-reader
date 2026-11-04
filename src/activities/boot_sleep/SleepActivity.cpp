@@ -31,6 +31,7 @@
 #include "images/Logo120.h"
 #include "images/MoonIcon.h"
 #include "util/DeepClean.h"
+#include "util/GrayGlass.h"
 #include "util/PanelCurve.h"
 
 namespace {
@@ -833,6 +834,9 @@ void SleepActivity::onEnter() {
     return renderTransparentCustomSleepScreen();
   }
 
+  // Over a gray photo (viewer) the framebuffer holds its B/W draft: the popup over it flashed a harsh black-and-white
+  // copy of the photo. Put the popup on a white sheet instead.
+  if (grayglass::imageOnGlass) renderer.clearScreen(0xFF);
   // Show popup with reader orientation only when going to sleep from reader
   if (APP_STATE.lastSleepFromReader) {
     ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);

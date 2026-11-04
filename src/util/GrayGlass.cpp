@@ -8,6 +8,7 @@
 
 namespace grayglass {
 bool imageOnGlass = false;
+bool viewerUnderneath = false;
 
 void trace(const char* fmt, ...) {
   static std::string lines[8];
