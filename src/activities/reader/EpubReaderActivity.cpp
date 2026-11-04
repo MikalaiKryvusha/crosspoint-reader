@@ -2088,7 +2088,12 @@ void EpubReaderActivity::renderContents(std::unique_ptr<Page> page, const int or
 
   // Black & White images: the page turns as plain B/W, images dither in the
   // B/W pass and text keeps its usual anti-aliasing.
-  const bool imageGrayscale = SETTINGS.imageRendering != CrossPointSettings::IMAGES_DISPLAY_BW;
+  // Night mode: the SDK skips every grayscale pass on inverted output (FreeInkDisplay::displayGrayBuffer — «inverted
+  // mode deliberately renders a crisp BW page»). A gray-mode image would then keep only its B/W base, where any
+  // non-white pixel is black — the image comes out crushed dark. Dither it in the B/W pass instead, as «Images: B/W»
+  // does (preserveImagePolarity keeps it the right way round). Nikolai 04.11.2026: «при тёмной — всё тёмное очень».
+  const bool imageGrayscale =
+      SETTINGS.imageRendering != CrossPointSettings::IMAGES_DISPLAY_BW && SETTINGS.screenInverted == 0;
   struct DitherScope {
     GfxRenderer& renderer;
     ~DitherScope() { renderer.setDitherImagesInBw(false); }
