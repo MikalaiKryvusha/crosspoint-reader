@@ -109,6 +109,10 @@ void SettingsActivity::rebuildSettings() {
 
   // Language leads so a user stuck in an unfamiliar language finds it first.
   addAction(SettingsSection::General, StrId::STR_LANGUAGE, SettingAction::Language);
+  // Clock configuration only exists where the RTC probe found hardware. Second in General (Nikolai 04.11.2026).
+  if (halClock.isAvailable()) {
+    addAction(SettingsSection::General, StrId::STR_CLOCK, SettingAction::ClockSettings);
+  }
   addAction(SettingsSection::General, StrId::STR_KEYBOARD_LAYOUTS, SettingAction::KeyboardLayouts);
   addAction(SettingsSection::Reader, StrId::STR_TEXT_SETTINGS, SettingAction::TextSettings);
   addAction(SettingsSection::Reader, StrId::STR_MANAGE_FONTS, SettingAction::DownloadFonts);
@@ -124,10 +128,6 @@ void SettingsActivity::rebuildSettings() {
     settings.push_back(std::move(setting));
   }
 
-  // Clock configuration only exists where the RTC probe found hardware.
-  if (halClock.isAvailable()) {
-    addAction(SettingsSection::General, StrId::STR_CLOCK, SettingAction::ClockSettings);
-  }
   addAction(SettingsSection::Reader, StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar);
   addAction(SettingsSection::Reader, StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
 
@@ -146,6 +146,13 @@ void SettingsActivity::rebuildSettings() {
   if (!BoardConfig::isPicco()) {
     addAction(SettingsSection::General, StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates);
     addAction(SettingsSection::General, StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate);
+  }
+  // «Показать скрытые файлы» second to last in General, right above «Об устройстве» (Nikolai 04.11.2026).
+  if (section == SettingsSection::General) {
+    const auto hidden = std::find_if(settings.begin(), settings.end(), [](const SettingInfo& setting) {
+      return setting.valuePtr == &CrossPointSettings::showHiddenFiles;
+    });
+    if (hidden != settings.end()) std::rotate(hidden, hidden + 1, settings.end());
   }
   addAction(SettingsSection::General, StrId::STR_ABOUT, SettingAction::About);
   rebuildRowItems();
