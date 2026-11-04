@@ -1,7 +1,7 @@
 # CrossPoint Reader — сборка Николая (X4 Pro)
 
 Форк [crosspoint-reader/crosspoint-reader](https://github.com/crosspoint-reader/crosspoint-reader) для
-Xteink X4 Pro. Версия на экране «Об устройстве» — `2.0.0-nk`. Оригинальный README — ниже, после этого раздела.
+Xteink X4 Pro. Версия на экране «Об устройстве» — `2.0.0-krinik`. Оригинальный README — ниже, после этого раздела.
 
 ## Что изменено
 
@@ -21,7 +21,7 @@ Xteink X4 Pro. Версия на экране «Об устройстве» — 
    **SD Card Firmware Update** (Обновление системы с SD-карты) → выбрать загруженный файл → подтвердить.
 5. Дождаться перезагрузки, не выключать и не нажимать кнопки. Перед записью читалка проверяет файл: заголовок,
    контрольную сумму, SHA256. Повреждённый файл она не запишет.
-6. Проверить: **Settings → System → About** (Об устройстве) — версия `2.0.0-nk`.
+6. Проверить: **Settings → System → About** (Об устройстве) — версия `2.0.0-krinik`.
 7. Файл прошивки с карты после этого можно удалить.
 
 **Не нажимать «Check for Updates» (Проверить обновления):** читалка поставит официальную версию и затрёт эти правки.
@@ -36,7 +36,7 @@ Xteink X4 Pro. Версия на экране «Об устройстве» — 
 
 ```sh
 python3 -m venv .venv && .venv/bin/pip install platformio
-.venv/bin/pio run -e x4pro-nk          # → .pio/build/x4pro-nk/firmware.bin
+.venv/bin/pio run -e x4pro-krinik          # → .pio/build/x4pro-krinik/firmware.bin
 cmake -S test -B build/test -G Ninja && cmake --build build/test && ctest --test-dir build/test   # тесты на компьютере
 ```
 
