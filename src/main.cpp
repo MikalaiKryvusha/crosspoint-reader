@@ -84,6 +84,10 @@ constexpr unsigned long X4PRO_POWER_CLICK_MAX_HOLD_MS = 300;
 // A wake hold must never become an in-app power-button action.  Boot may continue
 // while the button is held; swallow the one release that ends that wake gesture.
 static bool wakePowerReleasePending = false;
+// A power-button press during the sleep light linger (Settings → Display, 2/5/10 s) cancels the sleep in place
+// (Nikolai 04.11.2026: «нажатие в эти 5 секунд должно разбудить», and the light must not blink): enterDeepSleep()
+// returns instead of sleeping, and the next loop() pass restarts the inactivity timer from this flag.
+static bool sleepCancelledInPlace = false;
 
 // Fonts
 EpdFont notosans14RegularFont(&notosans_14_regular);
@@ -477,10 +481,6 @@ static bool holdSleepWhileUsbPowered() {
 // memory (kept through deep sleep, cleared on power loss).
 static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
 RTC_DATA_ATTR char sleepRedrawPath[192];
-// A power-button press during the sleep light linger (Settings → Display, 2/5/10 s): the reader sleeps for 10 ms and
-// this flag makes that wake an ordinary power-button wake (Nikolai 04.11.2026: «нажатие в эти 5 секунд должно
-// разбудить»).
-RTC_DATA_ATTR bool lingerWakeRequested = false;
 // This boot came from a panic: no unattended timer redraw on the next sleep (no sleep → panic → awake cycle).
 static bool bootWasPanic = false;
 // A power-button press during the settled redraw's repaint, latched so a quick click is not lost.
@@ -552,15 +552,16 @@ void enterDeepSleep(bool fromTimeout = false) {
   }
 
   // The light lingers over the fresh sleep image before it goes dark (Nikolai 04.11.2026: «успеть в темноте
-  // насладиться заставкой»). Only when it is on. A new power-button press in that window wakes the reader: rather than
-  // unwinding a half-done sleep entry, it sleeps for 10 ms and setup() treats that timer wake as a button wake.
+  // насладиться заставкой»). Only when it is on. A new power-button press in that window cancels the sleep in place,
+  // the light never going out (see the unwind below the window).
   // Settings → Display → «Подсветка на засыпании»: Off / 2 / 5 / 10 s.
   static constexpr unsigned long kLingerMs[] = {0, 2000, 5000, 10000};
   const unsigned long lingerMs =
       kLingerMs[SETTINGS.sleepLightLinger < CrossPointSettings::SLEEP_LIGHT_COUNT ? SETTINGS.sleepLightLinger : 0];
+  bool cancelSleep = false;
+  const int8_t pin = BoardConfig::ACTIVE.input.power;
+  const int pressed = BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW;
   if (lingerMs > 0 && Frontlight.present() && Frontlight.isOn()) {
-    const int8_t pin = BoardConfig::ACTIVE.input.power;
-    const int pressed = BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW;
     // The press that asked for sleep (hold-to-sleep) may still be down: only a new press, after a release, counts.
     // Both are debounced over 20 ms samples: a release is 2 up samples in a row, a press 3 down samples in a row
     // (≈ 40–60 ms), so the contact bounce of letting go of the hold never reads as a new press.
@@ -589,15 +590,38 @@ void enterDeepSleep(bool fromTimeout = false) {
       downRun = down ? downRun + 1 : 0;
       if (upRun >= kReleaseSamples) released = true;
       if (released && downRun >= kPressSamples) {
-        LOG_DBG("MAIN", "Power button during the sleep light linger: waking");
-        sleepRedrawPath[0] = '\0';  // no settled redraw: the reader is waking
-        lingerWakeRequested = true;
-        esp_sleep_enable_timer_wakeup(10 * 1000);
+        LOG_DBG("MAIN", "Power button during the sleep light linger: cancelling the sleep");
+        cancelSleep = true;
         break;
       }
       delay(20);
     }
-    if (fading && !lingerWakeRequested) Frontlight.setOutputLevel(0);  // the fade ends dark, then the pads are parked
+    if (fading && !cancelSleep) Frontlight.setOutputLevel(0);  // the fade ends dark, then the pads are parked
+  }
+
+  if (cancelSleep) {
+    // Unwind the sleep entry in place. Nothing that only a reset undoes has run yet: the panel, the card and the
+    // tilt sensor are still up (their sleep calls come after this block), the light was never parked. Undone here:
+    // the settled-redraw timer, the light level (back from a partial fade), the «sleep in progress» latch, the screen
+    // (the one a button wake would open: the book slept from, else Home). Bluetooth, stopped for the sleep, is
+    // started again by its own tick in loop(), as after a sheet. WiFi stays off, as after a real wake. The plugins'
+    // sleep event has gone out and is not taken back.
+    sleepRedrawPath[0] = '\0';
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+    Frontlight.restoreOutput();
+    // The press is a wake, not a click: wait until it is let go (bounded), and consume the release frame in loop().
+    const unsigned long releaseStart = millis();
+    while (pin >= 0 && digitalRead(pin) == pressed && millis() - releaseStart < 5000) delay(10);
+    wakePowerReleasePending = true;
+    allowSleepAt = millis() + 2000;  // as after a boot: a hold right now does not put it straight back to sleep
+    sleepCancelledInPlace = true;
+    deepSleepInProgress = false;
+    if (APP_STATE.lastSleepFromReader && !APP_STATE.openEpubPath.empty()) {
+      activityManager.goToReader(APP_STATE.openEpubPath);
+    } else {
+      activityManager.goHome();
+    }
+    return;
   }
 #endif
 
@@ -708,21 +732,13 @@ void setup() {
   // reports this boot as Other; it is handled below, before anything else draws.
   const bool timerWake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
   const bool settledRedrawWake = timerWake && sleepRedrawPath[0] != '\0';
-  // The 10 ms sleep after a press during the sleep light linger: an ordinary power-button wake. Any deep-sleep wake
-  // with the flag counts, whatever the cause: the button's own EXT1 wake may beat the 10 ms timer.
-  const bool lingerWake = esp_reset_reason() == ESP_RST_DEEPSLEEP && lingerWakeRequested;
-  if (lingerWake) wakeupReason = HalGPIO::WakeupReason::PowerButton;
-  lingerWakeRequested = false;
-#else
-  const bool lingerWake = false;
 #endif
   // Sample the wake hold now — a click wake is released within milliseconds of
   // boot — but defer the sleep-or-boot decision until SETTINGS is loaded below:
   // click-to-wake is a setting, and an X4 battery power-off cuts all power, so
   // only SD state survives to the next boot.
   // The Metalio boots after the button is released, so it skips the check.
-  // A linger wake's press was a deliberate press seen before sleeping; it is usually released by now.
-  const bool wakeHoldVerified = lingerWake || wakeupReason != HalGPIO::WakeupReason::PowerButton ||
+  const bool wakeHoldVerified = wakeupReason != HalGPIO::WakeupReason::PowerButton ||
                                 BoardConfig::isMetalioEInk4() ||
                                 gpio.verifyPowerButtonWakeup();
 
@@ -1086,6 +1102,10 @@ void loop() {
 
   // Check for any user activity (button press or release) or active background work
   static unsigned long lastActivityTime = millis();
+  if (sleepCancelledInPlace) {  // a sleep cancelled in the light linger: awake again from now
+    sleepCancelledInPlace = false;
+    lastActivityTime = millis();
+  }
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || gpio.wasTouchActivity() || halTiltSensor.hadActivity() ||
       remoteActed || activityManager.preventAutoSleep()) {
     lastActivityTime = millis();         // Reset inactivity timer
