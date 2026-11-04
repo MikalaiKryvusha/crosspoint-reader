@@ -18,6 +18,7 @@
 #include "components/icons/customListIcons.h"
 #include "components/icons/listIcons.h"
 #include "components/icons/readerToolbarIcons.h"
+#include "util/DeepClean.h"
 #include "util/GrayGlass.h"
 #include "util/SlideSwitch.h"
 
@@ -234,7 +235,7 @@ void FrontlightPanelActivity::toggleLight() {
 
 void FrontlightPanelActivity::close() {
   // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform.
-  if (themeSwitched) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+  if (themeSwitched) deepclean::toWhite(renderer);  // the guaranteed clean; the screen underneath repaints over it
   finish();
 }
 

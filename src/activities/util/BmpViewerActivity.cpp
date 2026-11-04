@@ -382,8 +382,7 @@ void BmpViewerActivity::onExit() {
   grayglass::viewerUnderneath = false;
   renderer.setOrientation(savedOrientation);
   display.setInverted(SETTINGS.screenInverted != 0);
-  renderer.clearScreen();
-  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
+  deepclean::toWhite(renderer);  // leaving the gray image: the guaranteed clean before the menus
 }
 
 void BmpViewerActivity::openSibling(const int delta) {
