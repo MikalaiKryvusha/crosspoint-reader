@@ -21,6 +21,10 @@ rows marked **device** are checked by Nikolai on the reader.
 | 12c | Viewer | long tap rotates 90°, side tap flips in landscape, Back restores portrait | sim ✅ 04.11 | rotated, exit in portrait |
 | 12d | Viewer | dark theme | sim ✅ 04.11 (`qa_runs/v_dark`) | positive image, black fields, dark «Загрузка» |
 | 12e | Viewer | flip: «Загрузка» on a clean sheet, no harsh B/W flash, then deep clean → grays | device | no harsh frame |
-| 13 | Deep clean | gray sleep / viewer image after a long stay in a menu | device | no line ~1 cm from the top |
+| 13 | Rails before gray | SSD1677 host test: powered-down panel → 0xC0 (BUSY) then 0xCC; powered → 0xCC only; mutation (no power-on) fails | host ✅ 04.11 (`run_pro.py`) | as described |
+| 13a | Rails before gray | gray sleep / viewer images, 20+ flips and 5+ sleeps after menus: band ~1 cm from the top, «Загрузка» ghost | device | none on any paint |
+| 13b | Rails before gray | B/W after gray: menus, book pages, file browser after the viewer and after wake | device | clean, no gray residue, no stuck refresh |
+| 13c | Rails before gray | battery after a night in sleep (sleep image paint powers the rails) | device | no extra drain vs before |
+| 12f | Viewer | long tap rotates clockwise; four taps back to portrait | sim (orientation math) + device | clockwise |
 | 14 | /.firmware | SD update opens in /.firmware; Back shows root with .firmware; file browser hides it | sim ✅ 04.11 (`qa_runs/v_fw`) | as described |
 | R | Regression | boot → Home → Settings → open book → turn pages → sleep → wake | sim | no crash, screens as before |
