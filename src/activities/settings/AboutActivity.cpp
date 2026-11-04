@@ -4,6 +4,7 @@
 #include <GfxRenderer.h>
 #include <HalClock.h>
 #include <HalFrontlight.h>
+#include <HalStorage.h>
 #include <HalTiltSensor.h>
 #include <esp_mac.h>
 
@@ -27,15 +28,46 @@ enum MenuItem {
   ITEM_RTC,
   ITEM_IMU,
   ITEM_MAC,
+  ITEM_SD_SIZE,
+  ITEM_SD_FS,
+  ITEM_SD_USED,
+  ITEM_SD_FREE,
 };
 
-// Deliberately hardcoded English, exempt from the tr() rule: support reads
-// these screenshots across every device language, so the labels must be
-// identical on every unit.
+// Upstream keeps these labels in English for support screenshots; the krinik build reads them in Russian.
 const char* const menuNames[AboutActivity::ITEM_COUNT] = {
-    "Device", "Firmware",          "Chip",        "Flash", "Display Controller", "Resolution", "Touch", "Frontlight",
-    "RTC",    "Tilt Sensor (IMU)", "MAC Address",
+    "Устройство",     "Прошивка",       "Процессор",         "SoC Flash",     "Контроллер экрана",
+    "Разрешение",     "Сенсор",         "Подсветка",         "Часы (RTC)",    "Датчик наклона",
+    "MAC-адрес",      "SD Flash",       "SD: файловая система", "SD: занято", "SD: свободно",
 };
+
+// «14,5 ГБ» / «35 МБ»: GiB with one decimal (comma), MiB below 1 GiB.
+std::string formatBytes(const uint64_t bytes) {
+  char buf[24];
+  constexpr uint64_t MIB = 1024ull * 1024ull;
+  constexpr uint64_t GIB = 1024ull * MIB;
+  if (bytes >= GIB) {
+    const uint64_t tenths = (bytes * 10 + GIB / 2) / GIB;
+    snprintf(buf, sizeof(buf), "%u,%u ГБ", static_cast<unsigned>(tenths / 10), static_cast<unsigned>(tenths % 10));
+  } else {
+    snprintf(buf, sizeof(buf), "%u МБ", static_cast<unsigned>((bytes + MIB / 2) / MIB));
+  }
+  return buf;
+}
+
+const char* fatTypeName(const uint8_t fatType) {
+  switch (fatType) {
+    case 12:
+      return "FAT12";
+    case 16:
+      return "FAT16";
+    case 32:
+      return "FAT32";
+    case 64:
+      return "exFAT";
+  }
+  return "—";
+}
 
 // Chip part numbers, not user prose — deliberately untranslated.
 const char* displayControllerName(const BoardConfig::DisplayController c) {
@@ -82,7 +114,7 @@ const char* touchControllerName(const BoardConfig::TouchController c) {
 AboutActivity::AboutActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
     : UiListActivity("About", renderer, mappedInput) {}
 
-const char* AboutActivity::headerTitle() const { return "About"; }
+const char* AboutActivity::headerTitle() const { return "Об устройстве"; }
 
 void AboutActivity::onEnter() {
   UiListActivity::onEnter();
@@ -107,14 +139,27 @@ void AboutActivity::onEnter() {
            static_cast<unsigned>(BoardConfig::ACTIVE.displayHeight));
   rowValues_[ITEM_RESOLUTION] = buf;
   const char* touch = touchControllerName(BoardConfig::ACTIVE.touch.controller);
-  rowValues_[ITEM_TOUCH] = touch ? touch : "No";
-  rowValues_[ITEM_FRONTLIGHT] = Frontlight.present() ? "Yes" : "No";
-  rowValues_[ITEM_RTC] = halClock.isAvailable() ? "Yes" : "No";
-  rowValues_[ITEM_IMU] = halTiltSensor.isAvailable() ? "Yes" : "No";
+  rowValues_[ITEM_TOUCH] = touch ? touch : "Нет";
+  rowValues_[ITEM_FRONTLIGHT] = Frontlight.present() ? "Да" : "Нет";
+  rowValues_[ITEM_RTC] = halClock.isAvailable() ? "Да" : "Нет";
+  rowValues_[ITEM_IMU] = halTiltSensor.isAvailable() ? "Да" : "Нет";
   uint8_t mac[6] = {0};
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
   snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   rowValues_[ITEM_MAC] = buf;
+
+  // SD card: the volume mounted at boot. Used space scans the FAT on the first call (cached ~20 s).
+  const uint64_t sdTotal = Storage.sdTotalBytes();
+  if (sdTotal == 0) {
+    rowValues_[ITEM_SD_SIZE] = "нет карты";
+    rowValues_[ITEM_SD_FS] = rowValues_[ITEM_SD_USED] = rowValues_[ITEM_SD_FREE] = "—";
+  } else {
+    const uint64_t sdUsed = Storage.sdUsedBytes();
+    rowValues_[ITEM_SD_SIZE] = formatBytes(sdTotal);
+    rowValues_[ITEM_SD_FS] = fatTypeName(Storage.sdFatType());
+    rowValues_[ITEM_SD_USED] = formatBytes(sdUsed);
+    rowValues_[ITEM_SD_FREE] = formatBytes(sdUsed <= sdTotal ? sdTotal - sdUsed : 0);
+  }
 }
 
 void AboutActivity::buildScreen(UiScreen& screen) {

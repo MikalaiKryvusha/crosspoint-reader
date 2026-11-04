@@ -37,6 +37,7 @@ bool HalStorage::begin() { return SDCard.begin(); }
 
 bool HalStorage::ready() const { return SDCard.ready(); }
 
+
 // For the rest of the methods, we acquire the mutex to ensure thread safety
 
 class HalStorage::StorageLock {
@@ -122,6 +123,10 @@ UsbDriveState HalStorage::usbDriveState() const {
 #define HAL_STORAGE_WRAPPED_CALL(method, ...) \
   HalStorage::StorageLock lock;               \
   return SDCard.method(__VA_ARGS__);
+
+uint64_t HalStorage::sdTotalBytes() { HAL_STORAGE_WRAPPED_CALL(sdTotalBytes); }
+uint64_t HalStorage::sdUsedBytes() { HAL_STORAGE_WRAPPED_CALL(sdUsedBytes); }
+uint8_t HalStorage::sdFatType() { HAL_STORAGE_WRAPPED_CALL(sdFatType); }
 
 std::vector<String> HalStorage::listFiles(const char* path, int maxFiles) {
   HAL_STORAGE_WRAPPED_CALL(listFiles, path, maxFiles);

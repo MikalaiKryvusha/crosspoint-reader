@@ -4,13 +4,14 @@
 #include "activities/UiListActivity.h"
 
 // Read-only device information: detected hardware (device profile, display
-// controller, touch, frontlight, RTC, IMU), firmware version, and MAC address.
+// controller, touch, frontlight, RTC, IMU), firmware version, MAC address, and the SD card
+// (filesystem, capacity, used and free space). Krinik build: labels in Russian.
 // Rows are informational; activating one does nothing.
 class AboutActivity final : public UiListActivity {
  public:
   explicit AboutActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
 
-  static constexpr int ITEM_COUNT = 11;
+  static constexpr int ITEM_COUNT = 15;
 
   void onEnter() override;
 
