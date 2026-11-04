@@ -775,9 +775,9 @@ bool SleepActivity::redrawCustomImage(GfxRenderer& renderer, MappedInputManager&
   display.setInverted(false);  // the sleep image draws in normal polarity, as in onEnter()
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
   const ScopedCleanup portraitAgain{[&renderer]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
-  // The clean is the image path's own white sheet (cleanToWhiteBeforeAbsoluteGray). An image that no longer opens
-  // leaves the glass untouched; one that fails mid-draw (after the white sheet) falls back to the default sleep
-  // screen rather than leaving a blank page.
+  // The clean is the image path's own white sheet (cleanToWhiteBeforeAbsoluteGray). A deleted image leaves the glass
+  // untouched. When the file is still there but the repaint failed, the default sleep screen is drawn — a failure
+  // after the white sheet would otherwise leave a blank page (a failure before it trades the old image for the logo).
   if (painter.renderCustomSleepBmp(path)) return true;
   if (Storage.exists(path.c_str())) {
     renderer.setOrientation(GfxRenderer::Orientation::Portrait);
@@ -888,7 +888,13 @@ bool SleepActivity::renderCustomSleepBmp(const std::string& path) const {
     HalFile cached;
     if (Storage.openFileForRead("SLP", cachePath, cached)) {
       Bitmap bitmap(cached);
-      if (bitmap.parseHeaders() == BmpReaderError::Ok) return renderBitmapSleepScreen(bitmap);
+      if (bitmap.parseHeaders() == BmpReaderError::Ok) {
+        if (renderBitmapSleepScreen(bitmap)) return true;
+        LOG_ERR("SLP", "Sleep image cache unreadable, dropping it: %s", cachePath.c_str());
+        cached.close();
+        Storage.remove(cachePath.c_str());  // rebuilt on the next sleep
+        return false;
+      }
       cached.close();
       Storage.remove(cachePath.c_str());
     }
@@ -906,13 +912,15 @@ void SleepActivity::renderCustomSleepScreen() const {
   // The default logo screen stays portrait.
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
   const ScopedCleanup portraitAgain{[this]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
-  // The sleep directories take priority over /sleep.bmp: one image per sleep, in order or at random
-  // (Settings → Display → Sleep Image Order); /sleep.bmp is the fallback when they hold no valid image.
+  // Settings → Display → Sleep Image Order decides the source outright — no silent fallback between them (Nikolai
+  // 04.11.2026): In Order / Random — only the sleep folders (/sleep, /.sleep), one image per sleep; One Image — only
+  // /sleep.bmp (what the viewer's «Set as sleep cover» writes). Nothing valid there: the default sleep screen.
   // A file whose header parses but whose pixels do not (truncated, damaged) fails only when drawn: take the
   // next pick. Each pick is remembered as the last shown, so the next call moves past it.
   constexpr int MAX_PICKS = 8;
   std::string firstFailed;
-  for (int attempt = 0; attempt < MAX_PICKS; ++attempt) {
+  const bool singleImage = SETTINGS.sleepImageOrder == CrossPointSettings::SLEEP_ORDER_SINGLE;
+  for (int attempt = 0; !singleImage && attempt < MAX_PICKS; ++attempt) {
     std::string selectedPath;
     if (SETTINGS.sleepImageOrder == CrossPointSettings::SLEEP_ORDER_RANDOM) {
       selectSleepFileAtRandom("/.sleep", "/sleep", selectedPath);
@@ -929,7 +937,7 @@ void SleepActivity::renderCustomSleepScreen() const {
     if (firstFailed.empty()) firstFailed = selectedPath;
   }
 
-  if (renderCustomSleepBmp("/sleep.bmp")) {
+  if (singleImage && renderCustomSleepBmp("/sleep.bmp")) {
     lastCustomSleepPath = "/sleep.bmp";
     return;
   }

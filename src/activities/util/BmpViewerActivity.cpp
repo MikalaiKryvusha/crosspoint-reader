@@ -496,22 +496,6 @@ bool BmpViewerActivity::saveJpegSleepCover() {
   return true;
 }
 
-// The sleep folders take priority over /sleep.bmp (SleepActivity::renderCustomSleepScreen). A cover set from here must
-// show, so the folders are parked out of the way (Nikolai 04.11.2026): /sleep → /_sleep, /.sleep → /_.sleep. Renaming
-// them back brings the rotation back. A viewer opened from a parked folder follows it.
-void BmpViewerActivity::parkSleepFolders() {
-  for (const auto& [from, to] : {std::pair<const char*, const char*>{"/sleep", "/_sleep"}, {"/.sleep", "/_.sleep"}}) {
-    if (!Storage.exists(from)) continue;
-    if (Storage.exists(to) || !Storage.rename(from, to)) {
-      LOG_ERR("BMP", "Could not park %s as %s", from, to);
-      continue;
-    }
-    LOG_DBG("BMP", "Sleep folder parked: %s -> %s", from, to);
-    const std::string prefix = std::string(from) + "/";
-    if (filePath.rfind(prefix, 0) == 0) filePath = std::string(to) + "/" + filePath.substr(prefix.size());
-  }
-}
-
 void BmpViewerActivity::doSetSleepCover() {
   display.setInverted(SETTINGS.screenInverted != 0);
   renderer.setRenderMode(GfxRenderer::BW);
@@ -563,11 +547,13 @@ void BmpViewerActivity::doSetSleepCover() {
   if (success) {
     if (!transparentMode) {
       SETTINGS.sleepScreen = CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM;
-      parkSleepFolders();
+      // The sleep folders take priority over /sleep.bmp: «One Image» makes the cover show; In Order / Random in
+      // Settings → Display bring the folder rotation back (the folders are not touched).
+      SETTINGS.sleepImageOrder = CrossPointSettings::SLEEP_ORDER_SINGLE;
     }
     SETTINGS.saveToFile();
     renderer.clearScreen(0xFF);
-    GUI.drawPopup(renderer, tr(STR_DONE));
+    GUI.drawPopup(renderer, transparentMode ? tr(STR_DONE) : tr(STR_SLEEP_COVER_SET_SINGLE));
   } else {
     renderer.clearScreen(0xFF);
     GUI.drawPopup(renderer, tr(STR_FAILED_LOWER));

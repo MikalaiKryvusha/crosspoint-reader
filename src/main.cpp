@@ -712,8 +712,9 @@ void setup() {
     // Repaint the same own sleep image (a white sheet, then the image), in the dark, and sleep again — power button
     // only now. A power button held at the end of the repaint (verified, debounced) turns this boot into an ordinary
     // power-button wake; a mere click during it (latched by an interrupt) does so only with «short press = sleep»,
-    // where a click is what wakes the reader anyway — otherwise the hold rule of a normal wake stands. recoveryFirmwareMode stays as sampled at boot (off): the
-    // recovery chord works on the next real wake.
+    // where a click is what wakes the reader anyway — otherwise the hold rule of a normal wake stands (a hold released
+    // before the repaint ends is not counted: press again; measuring hold time inside the ISR was judged too fragile).
+    // recoveryFirmwareMode stays as sampled at boot (off): the recovery chord works on the next real wake.
     const std::string path = sleepRedrawPath;
     sleepRedrawPath[0] = '\0';
     LOG_DBG("MAIN", "Settled sleep redraw: %s", path.c_str());

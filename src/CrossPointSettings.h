@@ -32,7 +32,14 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
   // Custom sleep images from /sleep and /.sleep: a random pick from the folders as they are now, or one after
   // another in path order.
-  enum SLEEP_IMAGE_ORDER { SLEEP_ORDER_RANDOM = 0, SLEEP_ORDER_SEQUENTIAL = 1, SLEEP_IMAGE_ORDER_COUNT };
+  // SLEEP_ORDER_SINGLE (Krinik 04.11.2026): only /sleep.bmp, the sleep folders are not read — what «Set as sleep
+  // cover» in the viewer switches to; In Order / Random bring the folder rotation back.
+  enum SLEEP_IMAGE_ORDER {
+    SLEEP_ORDER_RANDOM = 0,
+    SLEEP_ORDER_SEQUENTIAL = 1,
+    SLEEP_ORDER_SINGLE = 2,
+    SLEEP_IMAGE_ORDER_COUNT
+  };
   enum SLEEP_SCREEN_COVER_FILTER {
     NO_FILTER = 0,
     BLACK_AND_WHITE = 1,

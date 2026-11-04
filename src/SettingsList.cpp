@@ -37,7 +37,8 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                          {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SLEEP_IMAGE_ORDER, &CrossPointSettings::sleepImageOrder,
-                         {StrId::STR_SLEEP_ORDER_RANDOM, StrId::STR_SLEEP_ORDER_SEQUENTIAL}, "sleepImageOrder",
+                         {StrId::STR_SLEEP_ORDER_RANDOM, StrId::STR_SLEEP_ORDER_SEQUENTIAL, StrId::STR_SLEEP_ORDER_SINGLE},
+                         "sleepImageOrder",
                          StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_HOME_FULL_REFRESH, &CrossPointSettings::homeFullRefresh,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "homeFullRefresh", StrId::STR_CAT_DISPLAY));
