@@ -17,6 +17,7 @@ class HomeActivity final : public Activity {
   bool recentsLoading = false;
   bool recentsLoaded = false;
   bool firstRenderDone = false;
+  HalDisplay::RefreshMode firstRefreshMode() const;
   bool hasOpdsServers = false;
   bool hasPlugins = false;
   // The home "library" slot (index 2) shows Plugins when any plugin is
@@ -50,6 +51,10 @@ class HomeActivity final : public Activity {
     if (item == HomeMenuItem::FILE_TRANSFER) return i;
     ++i;
     if (item == HomeMenuItem::SETTINGS_MENU) return i;
+#if KRINIK_MAMA
+    ++i;
+    if (item == HomeMenuItem::MAMA_HEART) return i;
+#endif
     return 0;
   }
 
@@ -60,7 +65,10 @@ class HomeActivity final : public Activity {
     if (idx == i++) return HomeMenuItem::LIBRARY;
     if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
-    if (idx == i) return HomeMenuItem::SETTINGS_MENU;
+    if (idx == i++) return HomeMenuItem::SETTINGS_MENU;
+#if KRINIK_MAMA
+    if (idx == i) return HomeMenuItem::MAMA_HEART;
+#endif
     return HomeMenuItem::NONE;
   }
   void onRecentBookSelected(const std::string& path);

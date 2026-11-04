@@ -106,6 +106,7 @@ namespace {
 void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer, const bool absolute) {
 #if FREEINK_DEVICE_X4PRO
   if (!absolute) return;
+  LOG_DBG("BMP", "Clean to white (FULL) before absolute gray");
   renderer.clearScreen(0xFF);
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #else

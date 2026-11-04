@@ -26,8 +26,22 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
+// The first frame of each Home visit: a full refresh when «Clean Home Screen» is on, the clean HALF the
+// caller asked for, or the usual FAST one.
+HalDisplay::RefreshMode HomeActivity::firstRefreshMode() const {
+  if (firstRenderDone) return HalDisplay::FAST_REFRESH;
+  if (SETTINGS.homeFullRefresh) {
+    LOG_DBG("HOME", "Clean Home Screen: FULL refresh");
+    return HalDisplay::FULL_REFRESH;
+  }
+  return cleanInitialRefresh ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH;
+}
+
 int HomeActivity::getMenuItemCount() const {
   int count = 4;  // File Browser, Library, File transfer, Settings
+#if KRINIK_MAMA
+  count++;  // «♥ Для любимой Мамы» under Settings
+#endif
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -327,6 +341,11 @@ void HomeActivity::loop() {
       case HomeMenuItem::SETTINGS_MENU:
         onSettingsOpen();
         break;
+#if KRINIK_MAMA
+      case HomeMenuItem::MAMA_HEART:
+        activityManager.goToMama();
+        break;
+#endif
       default:
         break;
     }
@@ -480,8 +499,7 @@ void HomeActivity::render(RenderLock&&) {
     const auto labels = mappedInput.mapLabels(hasContinueReading ? tr(STR_RESUME) : "", tr(STR_SELECT),
                                               tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-    renderer.displayBuffer(cleanInitialRefresh && !firstRenderDone ? HalDisplay::HALF_REFRESH
-                                                                   : HalDisplay::FAST_REFRESH);
+    renderer.displayBuffer(firstRefreshMode());
     // Slot heights are recorded during the draw above; a change (first layout
     // pass, orientation switch) means the paths must point at those sizes and
     // any missing thumbs must be generated. Refreshing the paths right away
@@ -527,6 +545,11 @@ void HomeActivity::render(RenderLock&&) {
   std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_FILE_TRANSFER),
                                         tr(STR_SETTINGS_TITLE)};
   std::vector<UIIcon> menuIcons = {Folder, Library, Transfer, Settings};
+#if KRINIK_MAMA
+  // No «♥» in the text: the UI font lacks the glyph. Icon themes show a heart icon, text themes the words.
+  menuItems.push_back("Для любимой Мамы");
+  menuIcons.push_back(Heart);
+#endif
 
   if (hasLibrarySlot()) {
     menuItems.insert(menuItems.begin() + 2, hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));
@@ -553,7 +576,7 @@ void HomeActivity::render(RenderLock&&) {
                                             tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  renderer.displayBuffer(cleanInitialRefresh && !firstRenderDone ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+  renderer.displayBuffer(firstRefreshMode());
 
   if (!firstRenderDone) {
     firstRenderDone = true;
