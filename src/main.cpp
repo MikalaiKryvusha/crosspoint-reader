@@ -710,8 +710,9 @@ void setup() {
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
   if (settledRedrawWake) {
     // Repaint the same own sleep image (a white sheet, then the image), in the dark, and sleep again — power button
-    // only now. A power-button press at any time during the repaint (latched by an interrupt) or held at its end
-    // turns this boot into an ordinary power-button wake. recoveryFirmwareMode stays as sampled at boot (off): the
+    // only now. A power button held at the end of the repaint (verified, debounced) turns this boot into an ordinary
+    // power-button wake; a mere click during it (latched by an interrupt) does so only with «short press = sleep»,
+    // where a click is what wakes the reader anyway — otherwise the hold rule of a normal wake stands. recoveryFirmwareMode stays as sampled at boot (off): the
     // recovery chord works on the next real wake.
     const std::string path = sleepRedrawPath;
     sleepRedrawPath[0] = '\0';
@@ -724,7 +725,8 @@ void setup() {
     setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
     SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
     if (pin >= 0) detachInterrupt(pin);
-    if (!settledRedrawPress && !gpio.verifyPowerButtonWakeup()) {
+    const bool clickWakes = settledRedrawPress && SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP;
+    if (!clickWakes && !gpio.verifyPowerButtonWakeup()) {
       halTiltSensor.deepSleep();
       display.deepSleep();
       Storage.prepareForDeepSleep();

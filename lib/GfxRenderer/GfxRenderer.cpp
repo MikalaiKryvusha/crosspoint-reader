@@ -2568,10 +2568,6 @@ void GfxRenderer::restoreBwBuffer(const bool resyncPanelBaseline) {
   LOG_DBG("GFX", "Restored and freed BW buffer chunks");
 }
 
-/**
- * Cleanup grayscale buffers using the current frame buffer.
- * Use this when BW buffer was re-rendered instead of stored/restored.
- */
 int GfxRenderer::displayBufferDrivingRect(const int x, const int y, const int width, const int height) const {
 #ifdef SIMULATOR
   (void)x;
@@ -2599,6 +2595,10 @@ int GfxRenderer::displayBufferDrivingRect(const int x, const int y, const int wi
 #endif
 }
 
+/**
+ * Cleanup grayscale buffers using the current frame buffer.
+ * Use this when BW buffer was re-rendered instead of stored/restored.
+ */
 void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
   if (frameBuffer) {
     display.cleanupGrayscaleBuffers(frameBuffer);
