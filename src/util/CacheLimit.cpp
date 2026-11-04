@@ -75,6 +75,25 @@ void writeQueue(const std::string& queuePath, const std::vector<std::string>& pa
 }
 }  // namespace
 
+void clear(const char* prefix) {
+  std::vector<std::string> doomed;
+  HalFile dir = Storage.open(CACHE_DIR);
+  if (dir && dir.isDirectory()) {
+    char name[96];
+    for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
+      if (file.isDirectory()) continue;
+      file.getName(name, sizeof(name));
+      if (isCacheName(name, prefix) || (strncmp(name, prefix, strlen(prefix)) == 0 && hasSuffix(name, ".bmp.tmp"))) {
+        doomed.push_back(std::string(CACHE_DIR) + "/" + name);
+      }
+    }
+    dir.close();
+  }
+  for (const auto& path : doomed) Storage.remove(path.c_str());
+  Storage.remove((std::string(CACHE_DIR) + "/" + prefix + "cache.idx").c_str());
+  LOG_DBG("CACHE", "Cleared %u %s* cache files", static_cast<unsigned>(doomed.size()), prefix);
+}
+
 void remember(const char* prefix, const char* justWrittenPath, const size_t keep) {
   const std::string queuePath = std::string(CACHE_DIR) + "/" + prefix + "cache.idx";
   const std::string justWritten = justWrittenPath;

@@ -373,7 +373,7 @@ static bool loadSleepFrameBuffer() {
 
 // Plugin-event delivery on the way into deep sleep. sleep.enter is delivered
 // now — over the live connection, or by bringing WiFi up when a plugin
-// subscribes (e.g. fetching a fresh /sleep.bmp so THIS sleep shows it — the
+// subscribes (e.g. fetching a fresh /sleep.bmp so THIS sleep shows it with Sleep Image Order «One Image» — the
 // drain runs before goToSleep() renders the sleep screen). The connect path
 // is bounded (join deadline + drain event budget), skipped on low battery,
 // and sleep is never blocked on the network: a failed join or delivery just
@@ -536,7 +536,9 @@ void enterDeepSleep(bool fromTimeout = false) {
   // Arm the settled redraw only when this sleep drew an own image (Custom, or Cover + Custom's fallback).
   const std::string& drawnPath = SleepActivity::lastCustomImagePath();
   sleepRedrawPath[0] = '\0';
+  // Not on a nearly empty battery: the redraw wakes the reader unasked (review 04.11.2026).
   if (SETTINGS.sleepSettledRedraw && !isQuickResumeSleep && !drawnPath.empty() &&
+      powerManager.getBatteryPercentage() >= 15 &&
       drawnPath.size() < sizeof(sleepRedrawPath)) {
     memcpy(sleepRedrawPath, drawnPath.c_str(), drawnPath.size() + 1);
     esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
@@ -724,6 +726,7 @@ void setup() {
       attachInterrupt(pin, onSettledRedrawPress, BoardConfig::ACTIVE.input.powerActiveHigh ? RISING : FALLING);
     }
     setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
+    I18N.setLanguage(static_cast<Language>(SETTINGS.language));  // the default-screen fallback draws text
     SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
     if (pin >= 0) detachInterrupt(pin);
     const bool clickWakes = settledRedrawPress && SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP;

@@ -9,7 +9,8 @@ void shortClean(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
   // One HALF to white — on screen the waveform itself flashes black, then white. On this reader's UC8279 it is the
   // driver's scrub (OLD = complement of the target, every pixel driven). (The driver's exit-from-gray paint follows
-  // only a Direct gray pass — the sleep image, which deep sleep ends — so it does not take part here.)
+  // only a Direct gray pass — the sleep image. Deep sleep normally ends it; the one exception is a power-button wake
+  // during the timer redraw, where the first UI paint after it runs that exit paint.)
   LOG_DBG("CLN", "Short clean: HALF scrub to white");
   renderer.clearScreen(0xFF);
   renderer.displayBuffer(HalDisplay::HALF_REFRESH);

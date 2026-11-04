@@ -222,7 +222,7 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
     config.cachePath = VIEW_TMP_PXC;
     config.toneCurve = curve;
     Storage.remove(VIEW_TMP_PXC);
-    // The decoder also draws into the framebuffer; the popup on screen is untouched until the next refresh.
+    // The decoder also draws into the framebuffer; the image on screen is untouched until the next refresh.
     ok = decoder.decodeToFramebuffer(filePath, renderer, config) &&
          pixelCacheToBmp(VIEW_TMP_PXC, tmpPath.c_str(), config.maxWidth, config.maxHeight);
     Storage.remove(VIEW_TMP_PXC);
@@ -550,6 +550,7 @@ void BmpViewerActivity::doSetSleepCover() {
       // The sleep folders take priority over /sleep.bmp: «One Image» makes the cover show; In Order / Random in
       // Settings → Display bring the folder rotation back (the folders are not touched).
       SETTINGS.sleepImageOrder = CrossPointSettings::SLEEP_ORDER_SINGLE;
+      cachelimit::clear("sleep_");  // a same-size cover would otherwise reuse the previous cover's cache
     }
     SETTINGS.saveToFile();
     renderer.clearScreen(0xFF);

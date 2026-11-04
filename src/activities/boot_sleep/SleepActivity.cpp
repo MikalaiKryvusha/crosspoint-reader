@@ -789,6 +789,9 @@ bool SleepActivity::redrawCustomImage(GfxRenderer& renderer, MappedInputManager&
 void SleepActivity::onEnter() {
   Activity::onEnter();
   lastCustomSleepPath.clear();
+  // onEnter runs without the render lock; a render task waiting on it would apply the theme polarity in the middle of
+  // the sleep image's gray pass (review 04.11.2026). Nothing below takes the lock itself.
+  RenderLock lock;
 
   const bool renderQuickResume =
       SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::QUICK_RESUME ||

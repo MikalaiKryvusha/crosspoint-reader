@@ -13,7 +13,7 @@
 class Bitmap;
 
 // Image viewer (BMP, JPEG, PNG). Every image is shown in gray through the panel tone curve: it is prepared once into
-// a screen-ready 2-bit BMP cache (/.crosspoint/view_*.bmp) while «Загрузка» stands on a white sheet, then the panel
+// a screen-ready 2-bit BMP cache (/.crosspoint/view_*.bmp) while the previous image stays on screen, then the panel
 // gets the gray image painted from the cache (its base pass cleans to white first; a settled repaint follows after
 // 2 minutes, Settings → Display → «Перерисовка картинок»). Prev/next by buttons, swipes and side taps, wrapping
 // around the folder; a long tap rotates the view by 90°. The curve is loaded once and kept in RAM while open.
