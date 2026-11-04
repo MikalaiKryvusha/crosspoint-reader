@@ -265,7 +265,8 @@ class GfxRenderer {
   void invertScreen() const;
   // FAST paint that drives every pixel of the logical rect and none outside it: a sheet opening over a gray image
   // still on the glass (the usual path would promote the whole frame to a HALF clean). Plain FAST in the simulator.
-  void displayBufferDrivingRect(int x, int y, int width, int height) const;
+  // Returns 0 when driven; else the fallback reason (10 simulator, 11 promoted/fading/empty, display codes 1..4).
+  int displayBufferDrivingRect(int x, int y, int width, int height) const;
   void clearScreen(uint8_t color = 0xFF) const;
   void getOrientedViewableTRBL(int* outTop, int* outRight, int* outBottom, int* outLeft) const;
 

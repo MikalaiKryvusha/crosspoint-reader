@@ -149,6 +149,7 @@ void FrontlightPanelActivity::runTile(const int idx) {
     case 0:  // Night mode (inverted output polarity, applied to the whole UI)
       SETTINGS.screenInverted = SETTINGS.screenInverted ? 0 : 1;
       SETTINGS.saveToFile();
+      themeSwitched = true;  // Nikolai 04.11.2026: any theme switch → a FULL clean once the sheet closes
       // Inversion rewrites every pixel; take the clean waveform so the panel
       // does not keep a ghost of the old polarity.
       cleanRefreshPending = true;
@@ -228,7 +229,11 @@ void FrontlightPanelActivity::toggleLight() {
   requestUpdate();
 }
 
-void FrontlightPanelActivity::close() { finish(); }
+void FrontlightPanelActivity::close() {
+  // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform.
+  if (themeSwitched) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+  finish();
+}
 
 bool FrontlightPanelActivity::handleHomeGesture() {
   close();
@@ -448,13 +453,20 @@ void FrontlightPanelActivity::render(RenderLock&&) {
   // flip the whole frame's polarity without the FULL waveform's blackout
   // flash. Any faint residue clears with the panel's dedicated refresh tile
   // or the next scheduled clean refresh.
-  if (!cleanRefreshPending && grayglass::imageOnGlass && panelBottom > 0) {
+  const bool overGray = grayglass::imageOnGlass;
+  if (!cleanRefreshPending && overGray && panelBottom > 0) {
     // Over a gray image (photo viewer): drive only the sheet's rect, in the current theme, and leave the image —
     // instead of the full-frame HALF clean the driver promotes to after a gray paint (a dark-then-light flash).
     grayglass::imageOnGlass = false;
-    renderer.displayBufferDrivingRect(0, 0, renderer.getScreenWidth(), panelBottom + 16);  // + rule and grabber
+    const int why = renderer.displayBufferDrivingRect(0, 0, renderer.getScreenWidth(), panelBottom + 16);  // + rule
+    grayglass::trace("shade over gray: rect h=%d result=%d (0 driven)", panelBottom + 16, why);
   } else {
+    if (!traced) {
+      grayglass::trace("shade first frame: overGray=%d clean=%d bottom=%d", overGray ? 1 : 0,
+                       cleanRefreshPending ? 1 : 0, panelBottom);
+    }
     renderer.displayBuffer(cleanRefreshPending ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
   }
   cleanRefreshPending = false;
+  traced = true;
 }

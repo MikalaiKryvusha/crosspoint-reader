@@ -69,6 +69,8 @@ class FrontlightPanelActivity final : public Activity, private UiAppHost {
   // not use this — it closes the panel and promotes the repaint underneath
   // instead (GfxRenderer::promoteNextRefresh).
   bool cleanRefreshPending = false;
+  bool themeSwitched = false;  // night mode toggled while open → FULL clean on close
+  bool traced = false;         // first-frame path written to the shade trace
 
  public:
   explicit FrontlightPanelActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);

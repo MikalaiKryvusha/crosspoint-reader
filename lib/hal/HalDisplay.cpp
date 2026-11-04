@@ -95,8 +95,8 @@ void HalDisplay::refreshDisplay(HalDisplay::RefreshMode mode, bool turnOffScreen
 
 void HalDisplay::setInverted(bool inverted) { einkDisplay.setInverted(inverted); }
 void HalDisplay::setInvertedKeepingPanel(bool inverted) { einkDisplay.setInvertedKeepingPanel(inverted); }
-void HalDisplay::displayBufferDrivingRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
-  einkDisplay.displayBufferDrivingRect(x, y, w, h);
+int HalDisplay::displayBufferDrivingRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+  return einkDisplay.displayBufferDrivingRect(x, y, w, h);
 }
 
 bool HalDisplay::toggleInverted() { return einkDisplay.toggleInverted(); }

@@ -72,7 +72,7 @@ class HalDisplay {
   // Polarity switch that keeps the controller baseline (see FreeInkDisplay::setInvertedKeepingPanel).
   void setInvertedKeepingPanel(bool inverted);
   // FAST paint driving every pixel of a panel rect and none outside (see FreeInkDisplay::displayBufferDrivingRect).
-  void displayBufferDrivingRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+  int displayBufferDrivingRect(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   bool toggleInverted();
   bool isInverted() const;
 

@@ -6,3 +6,8 @@
 namespace grayglass {
 extern bool imageOnGlass;
 }  // namespace grayglass
+
+namespace grayglass {
+// Device diagnostics without a serial port: keeps the last lines and rewrites /.crosspoint/shade_trace.txt.
+void trace(const char* fmt, ...);
+}  // namespace grayglass
