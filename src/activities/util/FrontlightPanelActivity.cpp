@@ -110,11 +110,13 @@ void FrontlightPanelActivity::onExit() {
   // onExit() runs under the render lock (ActivityManager Pop / Replace), and the screen underneath paints next — so
   // a promotion set here is consumed by that repaint, never by a late repaint of the sheet.
   // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform — always,
-  // whatever «Очищать после шторки» says. Not over the photo viewer: it repaints its gray image itself, and a gray
-  // pass drops a promotion unused.
+  // whatever «Очищать после шторки» says.
   // Going to sleep with the sheet open: the sleep screen does its own white sheet — neither of these.
   if (!goingToSleep) {
-    if (themeSwitched && !grayglass::viewerUnderneath) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+    // The refresh tile always; a theme switch not over the photo viewer (the viewer repaints its gray image itself).
+    if (refreshTileUsed || (themeSwitched && !grayglass::viewerUnderneath)) {
+      renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+    }
     // Settings → Display → «Очищать после шторки» (off by default): a short clean every time the sheet closes; the
     // screen underneath repaints over it. Not over the viewer, not after a theme switch or the refresh tile (their
     // FULL repaint is the clean, and a clean here would consume that promotion).
@@ -163,7 +165,7 @@ void FrontlightPanelActivity::onTileEvent(const fui::ActionEvent& event, void* u
 void FrontlightPanelActivity::runTile(const int idx) {
   switch (idx) {
     case 0:  // Night mode (inverted output polarity, applied to the whole UI)
-      themeApplying = true;  // first: a render already reading the old theme must not see a cleared flag after it
+      themeApplying = true;  // no close until render() shows the sheet in the new theme
       SETTINGS.screenInverted = SETTINGS.screenInverted ? 0 : 1;
       SETTINGS.saveToFile();
       themeSwitched = true;  // Nikolai 04.11.2026: any theme switch → a FULL clean once the sheet closes
@@ -178,8 +180,8 @@ void FrontlightPanelActivity::runTile(const int idx) {
     case 1:  // Ghost-cleanup refresh of the whole frame
       // Refreshing with the panel still up would clean a frame the user is
       // about to dismiss anyway: drop the panel first and let the repaint of
-      // the screen underneath carry the clean waveform instead.
-      renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+      // the screen underneath carry the clean waveform instead (promoted in
+      // onExit, under the render lock, so no late sheet repaint consumes it).
       refreshTileUsed = true;
       close();
       break;
@@ -464,9 +466,6 @@ void FrontlightPanelActivity::buildPanelScreen(UiScreen& screen) {
 }
 
 void FrontlightPanelActivity::render(RenderLock&&) {
-  // Only a render that started after the theme toggle puts the new theme on screen; an older one ending late must
-  // not reopen the close.
-  const bool applyingTheme = themeApplying.load();
   panelBottom = computePanelBottom();
 
   // fui::sheet draws the card body, its bottom rule, and the grabber during
@@ -494,5 +493,7 @@ void FrontlightPanelActivity::render(RenderLock&&) {
   }
   cleanRefreshPending = false;
   traced = true;
-  if (applyingTheme) themeApplying = false;  // the sheet is on screen in the new theme: closing is allowed again
+  // The sheet is on screen in the current theme (the render task applied SETTINGS.screenInverted before this render;
+  // a render that started before the toggle still shows the old one and keeps the close blocked).
+  if (display.isInverted() == (SETTINGS.screenInverted != 0)) themeApplying = false;
 }

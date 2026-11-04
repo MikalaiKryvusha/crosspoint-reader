@@ -281,9 +281,14 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   }
 
   if (absolute) {
-    // Wipe the framebuffer: the absolute gray pass first paints it with one HALF (the driver's base pass), and it
-    // still holds the B/W draft of the photo on screen — that HALF flashed a harsh copy of the old photo (04.11.2026).
+    // Wipe the framebuffer: on UC8279 the absolute gray pass first paints it with one HALF (the driver's base pass,
+    // a «Separate» base), and it still holds the B/W draft of the photo on screen — that HALF flashed a harsh copy of
+    // the old photo (04.11.2026). A driver with a «Combined» base (SSD1677) has no base pass: give it the white sheet.
     renderer.clearScreen(0xFF);
+    if (renderer.grayscaleCapabilities(HalDisplay::GrayscaleMode::Absolute).base ==
+        HalDisplay::GrayscaleBase::Combined) {
+      deepclean::shortClean(renderer);
+    }
     if (!renderer.displayGrayscaleBase(HalDisplay::GrayscaleMode::Absolute)) return false;
   } else {
     renderer.clearScreen();
@@ -328,6 +333,9 @@ void BmpViewerActivity::showMessage(const char* message) {
 }
 
 void BmpViewerActivity::showCurrent() {
+  // Paints from the input loop (onEnter, page turns, rotate, the settled redraw — none holds the lock): hold the render
+  // lock so a queued render (its polarity switch would cancel a gray pass) cannot interleave.
+  RenderLock lock;
   LOG_DBG("BMP", "Show %d/%d: %s", currentImageIndex + 1, static_cast<int>(siblingImages.size()), filePath.c_str());
   paintedVisit = activityManager.visit();
   paintedAtMs = millis();
@@ -565,12 +573,7 @@ void BmpViewerActivity::loop() {
   if (SETTINGS.imageSettledRedraw && settledRedrawPending && grayglass::imageOnGlass &&
       millis() - paintedAtMs >= 120000UL) {
     LOG_DBG("BMP", "Settled redraw after 2 min");
-    {
-      // Unprompted paint from the input loop: hold the render lock so a queued render (its polarity switch would
-      // cancel a gray pass) cannot interleave with it.
-      RenderLock lock;
-      showCurrent();
-    }
+    showCurrent();
     settledRedrawPending = false;
     return;
   }

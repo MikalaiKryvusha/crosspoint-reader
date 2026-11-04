@@ -44,7 +44,6 @@
 #include "activities/ActivityManager.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
-#include <driver/gpio.h>
 #include <esp_sleep.h>
 
 #include "activities/boot_sleep/SleepActivity.h"
@@ -478,6 +477,9 @@ static bool holdSleepWhileUsbPowered() {
 // memory (kept through deep sleep, cleared on power loss).
 static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
 RTC_DATA_ATTR char sleepRedrawPath[192];
+// A power-button press during the settled redraw's repaint, latched so a quick click is not lost.
+static volatile bool settledRedrawPress = false;
+static void IRAM_ATTR onSettledRedrawPress() { settledRedrawPress = true; }
 #endif
 
 // Enter deep sleep mode
@@ -689,32 +691,7 @@ void setup() {
 
   HalSystem::checkPanic();
 
-#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
-  if (settledRedrawWake) {
-    // Repaint the same own sleep image (a white sheet, then the image), in the dark, and sleep again — power button
-    // only now. If the button is held when the repaint ends, this boot becomes an ordinary power-button wake.
-    const std::string path = sleepRedrawPath;
-    sleepRedrawPath[0] = '\0';
-    LOG_DBG("MAIN", "Settled sleep redraw: %s", path.c_str());
-    if (gpio.hasTouch()) SETTINGS.readerMenuStyle = CrossPointSettings::READER_MENU_TOOLBAR;  // as the load below
-    SETTINGS.loadFromFile();
-    UITheme::getInstance().reload();
-    setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
-    SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
-    if (!gpio.verifyPowerButtonWakeup()) {
-      halTiltSensor.deepSleep();
-      display.deepSleep();
-      Storage.prepareForDeepSleep();
-      powerManager.startDeepSleep(gpio);
-    }
-    LOG_DBG("MAIN", "Power button held at the end of the settled redraw: waking");
-    wakeupReason = HalGPIO::WakeupReason::PowerButton;
-  }
-#endif
-
   APP_STATE.loadFromFile();
-  const bool isSleepWake = wakeupReason == HalGPIO::WakeupReason::PowerButton;
-  const bool isPersistedSleepWake = isSleepWake && !APP_STATE.showBootScreen;
 
   if (recoveryFirmwareMode) {
     LOG_INF("MAIN", "Recovery firmware mode (%s + POWER held at boot)",
@@ -729,6 +706,37 @@ void setup() {
     SETTINGS.readerMenuStyle = CrossPointSettings::READER_MENU_TOOLBAR;
   }
   SETTINGS.loadFromFile();
+
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+  if (settledRedrawWake) {
+    // Repaint the same own sleep image (a white sheet, then the image), in the dark, and sleep again — power button
+    // only now. A power-button press at any time during the repaint (latched by an interrupt) or held at its end
+    // turns this boot into an ordinary power-button wake. recoveryFirmwareMode stays as sampled at boot (off): the
+    // recovery chord works on the next real wake.
+    const std::string path = sleepRedrawPath;
+    sleepRedrawPath[0] = '\0';
+    LOG_DBG("MAIN", "Settled sleep redraw: %s", path.c_str());
+    const int8_t pin = BoardConfig::ACTIVE.input.power;
+    settledRedrawPress = false;
+    if (pin >= 0) {
+      attachInterrupt(pin, onSettledRedrawPress, BoardConfig::ACTIVE.input.powerActiveHigh ? RISING : FALLING);
+    }
+    setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
+    SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
+    if (pin >= 0) detachInterrupt(pin);
+    if (!settledRedrawPress && !gpio.verifyPowerButtonWakeup()) {
+      halTiltSensor.deepSleep();
+      display.deepSleep();
+      Storage.prepareForDeepSleep();
+      powerManager.startDeepSleep(gpio);
+    }
+    LOG_DBG("MAIN", "Power button during the settled redraw: waking");
+    wakeupReason = HalGPIO::WakeupReason::PowerButton;
+  }
+#endif
+  const bool isSleepWake = wakeupReason == HalGPIO::WakeupReason::PowerButton;
+  const bool isPersistedSleepWake = isSleepWake && !APP_STATE.showBootScreen;
+
   // Push the saved timezone's POSIX rule into the clock (migrating the legacy
   // UTC-offset setting on first boot after the update).
   timezones::applyToClock();
@@ -739,8 +747,6 @@ void setup() {
   OPDS_TOKENS.loadFromFile();
   LCP_PASSPHRASES.loadFromFile();
   UITheme::getInstance().reload();
-
-
   ButtonNavigator::setMappedInputManager(mappedInputManager);
   pluginevents::refreshSubscriptions();
   // Seed the system clock from the battery-backed RTC: on RTC boards it is the

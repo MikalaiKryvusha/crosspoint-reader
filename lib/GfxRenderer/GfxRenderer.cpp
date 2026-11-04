@@ -17,6 +17,24 @@
 #include "FontCacheManager.h"
 #include "GlyphBitmap.h"
 
+#ifdef SIMULATOR
+#include <chrono>
+#include <thread>
+
+namespace {
+// Krinik (04.11.2026): the simulator's display is instant, so races with the render task never show. Set
+// CROSSPOINT_SIM_REFRESH_MS=<ms> to make every refresh block like a real e-ink waveform (fast refreshes a quarter of
+// it). Unset or 0: instant, as before. Simulator builds only.
+void simulateRefreshLatency(const bool fast) {
+  static const long ms = [] {
+    const char* value = std::getenv("CROSSPOINT_SIM_REFRESH_MS");
+    return value != nullptr ? std::strtol(value, nullptr, 10) : 0L;
+  }();
+  if (ms > 0) std::this_thread::sleep_for(std::chrono::milliseconds(fast ? ms / 4 : ms));
+}
+}  // namespace
+#endif
+
 namespace {
 // Synthesized small caps: lowercase letters draw as capitals at roughly x-height.
 constexpr int SMALL_CAPS_SCALE_NUM = 3;
@@ -1760,6 +1778,9 @@ void GfxRenderer::displayBuffer(HalDisplay::RefreshMode refreshMode) const {
   auto elapsed = millis() - start_ms;
   LOG_DBG("GFX", "Time = %lu ms from clearScreen to displayBuffer", elapsed);
   refreshMode = applyPromotedRefresh(refreshMode);
+#ifdef SIMULATOR
+  simulateRefreshLatency(refreshMode == HalDisplay::FAST_REFRESH);
+#endif
   display.displayBuffer(refreshMode, fadingFix);
 }
 
@@ -2443,6 +2464,9 @@ void GfxRenderer::copyGrayscaleLsbBuffers() const { display.copyGrayscaleLsbBuff
 void GfxRenderer::copyGrayscaleMsbBuffers() const { display.copyGrayscaleMsbBuffers(frameBuffer); }
 
 void GfxRenderer::displayGrayBuffer() const {
+#ifdef SIMULATOR
+  simulateRefreshLatency(false);
+#endif
   display.displayGrayBuffer(fadingFix);
   absoluteGrayPlanes = false;
 }
