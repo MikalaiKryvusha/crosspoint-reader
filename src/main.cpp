@@ -573,11 +573,12 @@ void enterDeepSleep(bool fromTimeout = false) {
     bool released = pin < 0;
     int upRun = 0;
     int downRun = 0;
-    // Experiment (branch nikolai-fade, Nikolai 04.11.2026): the light holds for the window minus 1 s, then fades from
-    // the current brightness to dark over the last second on the SDK's perceptual level curve (gamma 2), one step per
-    // 20 ms sample. A press during the fade still wakes the reader.
-    static constexpr unsigned long kFadeMs = 1000;
-    const unsigned long fadeStart = lingerMs - kFadeMs;  // every linger value is ≥ 2 s
+    // Experiment (branch nikolai-fade, Nikolai 04.11.2026): the light holds for the window minus the fade, then fades
+    // from the current brightness to dark on the SDK's perceptual level curve (gamma 2), one step per 20 ms sample. The
+    // fade length is Settings → Display → «Плавная подсветка» like every light animation (0 = goes dark at the end of
+    // the window). A press during the fade still wakes the reader.
+    const unsigned long fadeMs = SETTINGS.getLightRampMs();       // ≤ 1000 ms
+    const unsigned long fadeStart = lingerMs - fadeMs;            // every linger value is ≥ 2 s
     uint8_t fromLevel = 0;  // taken when the fade starts: an on-ramp may still be running during the hold
     bool fading = false;
     const unsigned long start = millis();
@@ -587,8 +588,8 @@ void enterDeepSleep(bool fromTimeout = false) {
       if (elapsed >= fadeStart) {
         if (!fading) fromLevel = Frontlight.currentOutputLevel();
         fading = true;
-        const unsigned long left = lingerMs - elapsed;  // 1..kFadeMs
-        Frontlight.setOutputLevel(static_cast<uint8_t>((fromLevel * left + kFadeMs / 2) / kFadeMs));
+        const unsigned long left = lingerMs - elapsed;  // 1..fadeMs (fadeMs > 0: elapsed < lingerMs = fadeStart + fadeMs)
+        Frontlight.setOutputLevel(static_cast<uint8_t>((fromLevel * left + fadeMs / 2) / fadeMs));
       }
       const bool down = pin >= 0 && digitalRead(pin) == pressed;
       upRun = down ? 0 : upRun + 1;
