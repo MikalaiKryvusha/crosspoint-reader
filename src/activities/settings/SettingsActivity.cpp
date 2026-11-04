@@ -27,6 +27,7 @@
 #include "MappedInputManager.h"
 #include "OpdsServerListActivity.h"
 #include "OtaUpdateActivity.h"
+#include "activities/util/ConfirmationActivity.h"
 #include "SdCardFontSystem.h"
 #include "SdFirmwareUpdateActivity.h"
 #include "SettingsList.h"
@@ -347,7 +348,21 @@ void SettingsActivity::toggleSelectedSetting() {
         startActivityForResult(std::make_unique<ClearCacheActivity>(renderer, mappedInput), resultHandler);
         break;
       case SettingAction::CheckForUpdates:
-        startActivityForResult(std::make_unique<OtaUpdateActivity>(renderer, mappedInput), resultHandler);
+        // Krinik build: nothing connects or downloads before a deliberate «yes» — the update installs the
+        // official CrossPoint firmware and replaces this build. «Cancel» is the default choice.
+        startActivityForResult(
+            std::make_unique<ConfirmationActivity>(
+                renderer, mappedInput, "Обновить прошивку?",
+                "Будет скачана и установлена официальная прошивка CrossPoint. Сборка krinik и её улучшения "
+                "будут заменены.",
+                "Отмена", "Обновить"),
+            [this, resultHandler](const ActivityResult& result) {
+              if (result.isCancelled) {
+                requestUpdate();
+                return;
+              }
+              startActivityForResult(std::make_unique<OtaUpdateActivity>(renderer, mappedInput), resultHandler);
+            });
         break;
       case SettingAction::SdFirmwareUpdate:
         startActivityForResult(std::make_unique<SdFirmwareUpdateActivity>(renderer, mappedInput), resultHandler);
