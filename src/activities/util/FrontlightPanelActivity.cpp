@@ -18,6 +18,7 @@
 #include "components/icons/customListIcons.h"
 #include "components/icons/listIcons.h"
 #include "components/icons/readerToolbarIcons.h"
+#include "util/GrayGlass.h"
 #include "util/SlideSwitch.h"
 
 namespace fui = freeink::ui;
@@ -395,10 +396,12 @@ void FrontlightPanelActivity::buildPanelScreen(UiScreen& screen) {
     const bool enabled[kTileCount] = {SETTINGS.screenInverted != 0, false, false,
                                       SETTINGS.touchReaderControls != CrossPointSettings::TOUCH_READER_OFF,
                                       SETTINGS.ble.enabled != 0};
-    static constexpr fui::Rotation rotations[] = {fui::Rotation::None, fui::Rotation::CW90, fui::Rotation::R180,
-                                                  fui::Rotation::CCW90};
+    // Krinik (Nikolai, 04.11.2026): the two landscapes were drawn mirrored — the icon now turns the way the screen
+    // will (LANDSCAPE_CW ↔ CCW90, LANDSCAPE_CCW ↔ CW90 on the X4 Pro panel), with its underline on the matching side.
+    static constexpr fui::Rotation rotations[] = {fui::Rotation::None, fui::Rotation::CCW90, fui::Rotation::R180,
+                                                  fui::Rotation::CW90};
     // The underline rotates around the same 32px square as the toolbar's T.
-    static constexpr fui::Rect underlines[] = {{4, 29, 24, 3}, {0, 4, 3, 24}, {4, 0, 24, 3}, {29, 4, 3, 24}};
+    static constexpr fui::Rect underlines[] = {{4, 29, 24, 3}, {29, 4, 3, 24}, {4, 0, 24, 3}, {0, 4, 3, 24}};
     const fui::Rect row = screen.takeTop(kQuickControlSize);
     const fui::Paint ink = fui::Paint::solid(fui::Color::Black);
     for (int id = 0; id < tileCount; ++id) {
@@ -445,6 +448,13 @@ void FrontlightPanelActivity::render(RenderLock&&) {
   // flip the whole frame's polarity without the FULL waveform's blackout
   // flash. Any faint residue clears with the panel's dedicated refresh tile
   // or the next scheduled clean refresh.
-  renderer.displayBuffer(cleanRefreshPending ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+  if (!cleanRefreshPending && grayglass::imageOnGlass && panelBottom > 0) {
+    // Over a gray image (photo viewer): drive only the sheet's rect, in the current theme, and leave the image —
+    // instead of the full-frame HALF clean the driver promotes to after a gray paint (a dark-then-light flash).
+    grayglass::imageOnGlass = false;
+    renderer.displayBufferDrivingRect(0, 0, renderer.getScreenWidth(), panelBottom + 16);  // + rule and grabber
+  } else {
+    renderer.displayBuffer(cleanRefreshPending ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+  }
   cleanRefreshPending = false;
 }

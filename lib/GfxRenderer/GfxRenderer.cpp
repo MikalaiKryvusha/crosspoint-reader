@@ -2548,6 +2548,31 @@ void GfxRenderer::restoreBwBuffer(const bool resyncPanelBaseline) {
  * Cleanup grayscale buffers using the current frame buffer.
  * Use this when BW buffer was re-rendered instead of stored/restored.
  */
+void GfxRenderer::displayBufferDrivingRect(const int x, const int y, const int width, const int height) const {
+#ifdef SIMULATOR
+  (void)x;
+  (void)y;
+  (void)width;
+  (void)height;
+  displayBuffer(HalDisplay::FAST_REFRESH);
+#else
+  const auto mode = applyPromotedRefresh(HalDisplay::FAST_REFRESH);
+  if (mode != HalDisplay::FAST_REFRESH || fadingFix || width <= 0 || height <= 0) {
+    display.displayBuffer(mode, fadingFix);
+    return;
+  }
+  int ax, ay, bx, by;
+  rotateCoordinates(orientation, x, y, &ax, &ay, panelWidth, panelHeight);
+  rotateCoordinates(orientation, x + width - 1, y + height - 1, &bx, &by, panelWidth, panelHeight);
+  const int left = std::max(0, std::min(ax, bx));
+  const int top = std::max(0, std::min(ay, by));
+  const int right = std::min(static_cast<int>(panelWidth) - 1, std::max(ax, bx));
+  const int bottom = std::min(static_cast<int>(panelHeight) - 1, std::max(ay, by));
+  display.displayBufferDrivingRect(static_cast<uint16_t>(left), static_cast<uint16_t>(top),
+                                   static_cast<uint16_t>(right - left + 1), static_cast<uint16_t>(bottom - top + 1));
+#endif
+}
+
 void GfxRenderer::cleanupGrayscaleWithFrameBuffer() const {
   if (frameBuffer) {
     display.cleanupGrayscaleBuffers(frameBuffer);

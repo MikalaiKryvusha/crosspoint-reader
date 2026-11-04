@@ -19,6 +19,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/DeepClean.h"
+#include "util/GrayGlass.h"
 #include "util/PanelCurve.h"
 
 namespace {
@@ -236,6 +237,7 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
 // Paints a ≤ 2-bit bitmap centered: deep clean, then the absolute gray image; the B/W framebuffer is rebuilt after
 // for popups and differential updates.
 bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
+  grayglass::imageOnGlass = false;
   // Gray needs normal output polarity (the driver offers no grayscale while inverted), as the sleep screen does.
   display.setInverted(false);
   const int pageWidth = renderer.getScreenWidth();
@@ -302,6 +304,7 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   if (!draw()) ready = false;
   renderer.cleanupGrayscaleWithFrameBuffer();
   if (ready) restNightPolarity(renderer);
+  grayglass::imageOnGlass = ready;
   return ready;
 }
 
@@ -372,6 +375,7 @@ void BmpViewerActivity::onEnter() {
 
 void BmpViewerActivity::onExit() {
   Activity::onExit();
+  grayglass::imageOnGlass = false;
   renderer.setOrientation(savedOrientation);
   display.setInverted(SETTINGS.screenInverted != 0);
   renderer.clearScreen();
