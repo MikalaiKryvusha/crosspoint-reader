@@ -53,6 +53,8 @@ class HomeActivity final : public Activity {
     if (item == HomeMenuItem::FILE_TRANSFER) return i;
     ++i;
     if (item == HomeMenuItem::SETTINGS_MENU) return i;
+    ++i;
+    if (item == HomeMenuItem::FLASHLIGHT) return i;
 #if KRINIK_MAMA
     ++i;
     if (item == HomeMenuItem::MAMA_HEART) return i;
@@ -68,6 +70,7 @@ class HomeActivity final : public Activity {
     if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
     if (idx == i++) return HomeMenuItem::SETTINGS_MENU;
+    if (idx == i++) return HomeMenuItem::FLASHLIGHT;
 #if KRINIK_MAMA
     if (idx == i) return HomeMenuItem::MAMA_HEART;
 #endif

@@ -21,6 +21,8 @@ class HalFrontlight {
   // write that leaves the saved brightness and the on/off state untouched. 0 = dark.
   uint8_t currentOutputLevel() const;
   void setOutputLevel(uint8_t level);
+  // Back to the saved state after setOutputLevel: the saved brightness when on, dark when off.
+  void restoreOutput();
   // Park the PWM pads at the LED-off level and hold them through deep sleep (the saved light state is untouched;
   // begin() releases the hold on the next full boot; the settled-redraw timer path and the SD-error path never call
   // it, so there the pads stay parked — the light stays off).

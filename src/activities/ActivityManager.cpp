@@ -31,6 +31,7 @@
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsListActivity.h"
 #include "util/BmpViewerActivity.h"
+#include "util/FlashlightActivity.h"
 #if KRINIK_MAMA
 #include "util/MamaActivity.h"
 #endif
@@ -296,6 +297,9 @@ void ActivityManager::goToUsbDrive() {
 #endif
 }
 
+void ActivityManager::goToFlashlight() {
+  replaceActivity(std::make_unique<FlashlightActivity>(renderer, mappedInput));
+}
 #if KRINIK_MAMA
 void ActivityManager::goToMama() { replaceActivity(std::make_unique<MamaActivity>(renderer, mappedInput)); }
 #endif

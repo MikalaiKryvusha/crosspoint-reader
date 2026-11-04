@@ -13,6 +13,7 @@
 #include "icons/blocks.h"
 #include "icons/book.h"
 #include "icons/folder.h"
+#include "icons/flashlight.h"
 #include "icons/heart.h"
 #include "icons/library.h"
 #include "icons/settings2.h"
@@ -285,9 +286,11 @@ void CoverGridHomeUi::drawGrid(UiScreen& screen) {
 
 void CoverGridHomeUi::drawTabs(UiScreen& screen, fui::Rect rect) {
 #if KRINIK_MAMA
-  static constexpr const uint8_t* ICONS[] = {FolderIcon, LibraryIcon, BlocksIcon, TransferIcon, Settings2Icon, HeartIcon};
+  static constexpr const uint8_t* ICONS[] = {FolderIcon,    LibraryIcon,    BlocksIcon, TransferIcon,
+                                             Settings2Icon, FlashlightIcon, HeartIcon};
 #else
-  static constexpr const uint8_t* ICONS[] = {FolderIcon, LibraryIcon, BlocksIcon, TransferIcon, Settings2Icon};
+  static constexpr const uint8_t* ICONS[] = {FolderIcon, LibraryIcon, BlocksIcon, TransferIcon, Settings2Icon,
+                                             FlashlightIcon};
 #endif
   constexpr int ICON_COUNT = sizeof(ICONS) / sizeof(ICONS[0]);
   int count = 0;

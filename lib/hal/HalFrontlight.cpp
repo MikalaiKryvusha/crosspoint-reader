@@ -42,6 +42,10 @@ void HalFrontlight::setOutputLevel(const uint8_t level) {
   if (manager.present()) manager.setBrightnessLevel(level);
 }
 
+void HalFrontlight::restoreOutput() {
+  if (manager.present()) manager.setBrightness(lit ? lastBrightness : 0);
+}
+
 void HalFrontlight::setOn(const bool on) {
   if (on == lit) return;
   lit = on;

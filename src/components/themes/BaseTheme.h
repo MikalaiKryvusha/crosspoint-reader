@@ -148,7 +148,8 @@ enum UIIcon {
   Bookmark,
   Usb,
   Blocks,
-  Heart
+  Heart,
+  Flashlight
 };
 
 // Default theme implementation (Classic Theme)
