@@ -593,7 +593,7 @@ STR_KB_HINT_SECONDARY_CHAR: "Удерживайте ВЫБРАТЬ для доп
 STR_KB_HINT_UPPER_SECONDARY: "Удерживайте ВЫБРАТЬ для ЗАГЛАВНЫХ / символов"
 STR_KB_HINT_LOWER_SECONDARY: "Удерживайте ВЫБРАТЬ для строчных / символов"
 STR_KB_HINT_URL_SNIPPETS: "Нажмите URL для выбора шаблонов"
-STR_SD_FIRMWARE_UPDATE: "Обновление системы с SD-карты"
+STR_SD_FIRMWARE_UPDATE: "Прошивка с SD карты"
 STR_SELECT_FIRMWARE_FILE: "Выберите файл прошивки (.bin)"
 STR_NO_BIN_FILES: ".bin файлы не найдены"
 STR_VALIDATING_FIRMWARE: "Проверка файла прошивки..."
