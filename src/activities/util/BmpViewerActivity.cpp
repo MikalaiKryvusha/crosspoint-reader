@@ -234,8 +234,8 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
   return ok;
 }
 
-// Paints a ≤ 2-bit bitmap centered: deep clean, then the absolute gray image; the B/W framebuffer is rebuilt after
-// for popups and differential updates.
+// Paints a ≤ 2-bit bitmap centered: the absolute gray image straight over what is on screen (no clean — see the
+// settled redraw in loop()); the B/W framebuffer is rebuilt after for popups and differential updates.
 bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   grayglass::imageOnGlass = false;
   // Gray needs normal output polarity (the driver offers no grayscale while inverted), as the sleep screen does.
@@ -273,7 +273,6 @@ bool BmpViewerActivity::paintBitmap(Bitmap& bitmap) {
   };
 
   if (!bitmap.hasGreyscale()) {
-    deepclean::toWhite(renderer);
     renderer.clearScreen();
     if (!draw()) return false;
     renderer.displayBuffer(HalDisplay::HALF_REFRESH);
@@ -341,8 +340,7 @@ void BmpViewerActivity::showCurrent() {
 
 // Paints the current image in the draw orientation; returns the message to show on failure.
 const char* BmpViewerActivity::paintCurrent() {
-  // No «Загрузка» popup: the current image stays on screen while the next one is prepared, then the deep clean and
-  // the gray paint. A popup left a ghost through the gray image, and drawing it over the framebuffer (the B/W draft
+  // No «Загрузка» popup: the current image stays on screen while the next one is prepared, then the gray paint. A popup left a ghost through the gray image, and drawing it over the framebuffer (the B/W draft
   // of the gray image on screen) flashed a harsh black-and-white frame.
   renderer.setRenderMode(GfxRenderer::BW);
 
@@ -392,12 +390,12 @@ void BmpViewerActivity::onExit() {
   display.setInverted(SETTINGS.screenInverted != 0);
   if (goingToSleep) {
     // The sleep screen erases the gray photo with its own clean before the sleep image: one transition, not two
-    // (driving the photo to white here first flashed a harsh copy of it). imageOnGlass stays set so the sleep
-    // screen skips its popup over the photo too.
+    // (driving the photo to white here first flashed a harsh copy of it).
     return;
   }
   grayglass::imageOnGlass = false;
-  // Settings → Display → «Redraw Menus» (on by default): a short clean before the menus, so the photo leaves no trace.
+  // Settings → Display → «Перерисовка меню» (on by default): a short clean before the menus, so the photo leaves no
+  // trace on them.
   if (SETTINGS.menuExitClean) deepclean::shortClean(renderer);
 }
 
@@ -565,8 +563,13 @@ void BmpViewerActivity::loop() {
   if (SETTINGS.imageSettledRedraw && settledRedrawPending && grayglass::imageOnGlass &&
       millis() - paintedAtMs >= 120000UL) {
     LOG_DBG("BMP", "Settled redraw after 2 min");
-    deepclean::shortClean(renderer);
-    showCurrent();
+    {
+      // Unprompted paint from the input loop: hold the render lock so a queued render (its polarity switch would
+      // cancel a gray pass) cannot interleave with it.
+      RenderLock lock;
+      deepclean::shortClean(renderer);
+      showCurrent();
+    }
     settledRedrawPending = false;
     return;
   }

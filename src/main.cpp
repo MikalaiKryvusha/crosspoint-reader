@@ -472,36 +472,12 @@ static bool holdSleepWhileUsbPowered() {
 
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
 // Settled sleep redraw (Krinik, 04.11.2026; Settings → Display → «Redraw Sleep Screen»): frames drawn seconds before
-// the gray sleep image print into it and drain in minutes. Light-sleep 5 minutes (RAM, display state and rails kept),
-// then repaint the same own image once with a short clean. Returns true when the power button ended the nap — the
-// caller then wakes the reader instead of going to deep sleep.
+// the gray sleep image print into it and drain in minutes. The reader goes to its ordinary deep sleep with one extra
+// wake source: a timer 5 minutes out. The power button wakes it the usual way; the timer boots a short path in setup()
+// that repaints the same own image with a short clean and sleeps again, button only. The image path rides in RTC slow
+// memory (kept through deep sleep, cleared on power loss).
 static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
-
-static bool napThenRedrawSleepImage() {
-  const int8_t pin = BoardConfig::ACTIVE.input.power;
-  if (pin < 0) return false;
-  const auto g = static_cast<gpio_num_t>(pin);
-  const bool activeHigh = BoardConfig::ACTIVE.input.powerActiveHigh;
-  pinMode(pin, activeHigh ? INPUT_PULLDOWN : INPUT_PULLUP);
-  const int pressed = activeHigh ? HIGH : LOW;
-  while (digitalRead(pin) == pressed) delay(10);  // the press that asked for sleep must not end the nap
-
-  LOG_DBG("MAIN", "Sleep settle nap: 5 min");
-  esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
-  gpio_wakeup_enable(g, activeHigh ? GPIO_INTR_HIGH_LEVEL : GPIO_INTR_LOW_LEVEL);
-  esp_sleep_enable_gpio_wakeup();
-  esp_light_sleep_start();
-  const auto cause = esp_sleep_get_wakeup_cause();
-  gpio_wakeup_disable(g);
-  // gpio_wakeup_disable() keeps the level type; a later pinMode() would turn it into an interrupt storm.
-  gpio_set_intr_type(g, GPIO_INTR_DISABLE);
-  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_ALL);
-  if (cause != ESP_SLEEP_WAKEUP_TIMER) return true;
-
-  LOG_DBG("MAIN", "Sleep settle nap over: redrawing the sleep image");
-  SleepActivity::redrawLastCustomImage(renderer, mappedInputManager);
-  return false;
-}
+RTC_DATA_ATTR char sleepRedrawPath[192];
 #endif
 
 // Enter deep sleep mode
@@ -555,13 +531,14 @@ void enterDeepSleep(bool fromTimeout = false) {
 #endif
 
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
-  if (SETTINGS.sleepSettledRedraw && !isQuickResumeSleep &&
-      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM) {
-    Frontlight.setOn(false);  // the nap and the redraw run dark; the preference stays for restore-on-wake
-    if (napThenRedrawSleepImage()) {
-      LOG_DBG("MAIN", "Power button during the sleep settle nap: waking");
-      esp_restart();
-    }
+  // Arm the settled redraw only when this sleep drew an own image (Custom, or Cover + Custom's fallback).
+  const std::string& drawnPath = SleepActivity::lastCustomImagePath();
+  sleepRedrawPath[0] = '\0';
+  if (SETTINGS.sleepSettledRedraw && !isQuickResumeSleep && !drawnPath.empty() &&
+      drawnPath.size() < sizeof(sleepRedrawPath)) {
+    memcpy(sleepRedrawPath, drawnPath.c_str(), drawnPath.size() + 1);
+    esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
+    LOG_DBG("MAIN", "Sleep redraw armed in 5 min: %s", sleepRedrawPath);
   }
 #endif
 
@@ -574,6 +551,11 @@ void enterDeepSleep(bool fromTimeout = false) {
 }
 
 void setupDisplayAndFonts(bool seamless = false) {
+  // Once per boot: the settled sleep redraw sets the display up early and, when the power button was pressed during
+  // it, the boot goes on into the ordinary setup call below.
+  static bool done = false;
+  if (done) return;
+  done = true;
 #if !FREEINK_MCU_C3
   // C3 resolves its controller in HalGPIO::begin() before SPI claims the
   // display pins. X4 Pro skips that C3-only path, so probe here before
@@ -722,6 +704,34 @@ void setup() {
   OPDS_TOKENS.loadFromFile();
   LCP_PASSPHRASES.loadFromFile();
   UITheme::getInstance().reload();
+
+#if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
+  // Settled sleep redraw: the 5-minute timer armed by enterDeepSleep() fired. Repaint the same own sleep image with a
+  // short clean, in the dark, and go back to deep sleep — power button only now. A press during the repaint is not
+  // lost: the boot then simply goes on as a wake. A button wake before the timer never gets here (the timer dies with
+  // that wake).
+  if (esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER &&
+      sleepRedrawPath[0] != '\0') {
+    const std::string path = sleepRedrawPath;
+    sleepRedrawPath[0] = '\0';
+    LOG_DBG("MAIN", "Settled sleep redraw: %s", path.c_str());
+    setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
+    SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
+    const int8_t pin = BoardConfig::ACTIVE.input.power;
+    const bool pressed =
+        pin >= 0 && digitalRead(pin) == (BoardConfig::ACTIVE.input.powerActiveHigh ? HIGH : LOW);
+    if (!pressed) {
+      esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+      halTiltSensor.deepSleep();
+      display.deepSleep();
+      Storage.prepareForDeepSleep();
+      powerManager.startDeepSleep(gpio);
+    }
+    LOG_DBG("MAIN", "Power button during the settled redraw: waking");
+  }
+  sleepRedrawPath[0] = '\0';
+#endif
+
   ButtonNavigator::setMappedInputManager(mappedInputManager);
   pluginevents::refreshSubscriptions();
   // Seed the system clock from the battery-backed RTC: on RTC boards it is the

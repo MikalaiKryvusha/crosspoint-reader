@@ -53,15 +53,13 @@ void cleanBeforeAbsoluteGray(GfxRenderer& renderer) {
 #endif
 }
 
-// X4 Pro (SSD1677, absolute gray): the page text shows through a full-screen sleep image. Clean to
-// white, not to the B/W draft in the framebuffer (that flashes a harsh black-and-white image before
-// the grays). Absolute gray redraws both planes from the image, so the framebuffer is free to wipe.
+// Before a full-screen absolute/direct gray sleep image: a white sheet first. On the X4 Pro the gray waveform started
+// straight over the menu or page showed the image in a harsh burnt-out contrast before it settled to gray
+// (04.11.2026); from white it does not. The sleep moment tolerates the one flash; the ghost of what was on screen
+// before is the settled redraw's job (5 minutes later).
 void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
-  // No clean before the gray (time removes ghosts; the 5-minute settled redraw does the clean). Wipe the framebuffer
-  // in memory only: any B/W paint the gray pass falls back to (night mode's polarity switch) must be a plain white
-  // sheet, not the harsh B/W draft of the sleep image (04.11.2026).
-  renderer.clearScreen(0xFF);
+  deepclean::shortClean(renderer);
 #elif FREEINK_DEVICE_METALIO_EINK4
   renderer.displayBuffer(HalDisplay::FULL_REFRESH);
 #else
@@ -755,34 +753,6 @@ bool selectRandomSleepFile(const char* firstDirPath, const char* secondDirPath, 
   return true;
 }
 
-[[maybe_unused]] bool drawSleepPopupPreservingFrame(GfxRenderer& renderer) {
-  const auto& metrics = UITheme::getInstance().getMetrics();
-  const int frameThickness = metrics.popupFrameThickness;
-  const int popupY = static_cast<int>(renderer.getScreenHeight() * metrics.popupTopOffsetRatio);
-  const int popupHeight = renderer.getLineHeight(UI_12_FONT_ID) + metrics.popupMarginY * 2;
-  const int bandTop = std::max(0, popupY - frameThickness);
-  const int bandBottom = std::min(renderer.getScreenHeight(), popupY + popupHeight + frameThickness);
-  const int bandHeight = bandBottom - bandTop;
-  const size_t bandBytes = renderer.getRegionByteSize(0, bandTop, renderer.getScreenWidth(), bandHeight);
-
-  auto savedBand = makeUniqueNoThrow<uint8_t[]>(bandBytes);
-  if (!savedBand) {
-    LOG_ERR("SLP", "OOM: sleep popup background (%u bytes)", static_cast<unsigned>(bandBytes));
-    return false;
-  }
-  if (!renderer.copyRegionToBuffer(0, bandTop, renderer.getScreenWidth(), bandHeight, savedBand.get(), bandBytes)) {
-    LOG_ERR("SLP", "Failed to save sleep popup background");
-    return false;
-  }
-
-  GUI.drawPopup(renderer, tr(STR_ENTERING_SLEEP));
-  if (!renderer.copyBufferToRegion(0, bandTop, renderer.getScreenWidth(), bandHeight, savedBand.get(), bandBytes)) {
-    LOG_ERR("SLP", "Failed to restore sleep popup background");
-    return false;
-  }
-  return true;
-}
-
 void releaseSdFontCachesForDecode(const GfxRenderer& renderer) {
   if (auto* fcm = renderer.getFontCacheManager()) {
     LOG_DBG("SLP", "Free heap before SD font cache release: %d bytes", ESP.getFreeHeap());
@@ -796,17 +766,16 @@ std::string lastCustomSleepPath;
 
 }  // namespace
 
-bool SleepActivity::redrawLastCustomImage(GfxRenderer& renderer, MappedInputManager& mappedInput) {
-  if (lastCustomSleepPath.empty()) return false;
-  const SleepActivity painter(renderer, mappedInput);
-  return painter.redrawCustomImage(lastCustomSleepPath);
-}
+const std::string& SleepActivity::lastCustomImagePath() { return lastCustomSleepPath; }
 
-bool SleepActivity::redrawCustomImage(const std::string& path) const {
+bool SleepActivity::redrawCustomImage(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& path) {
+  // A painter instance only for the const render helpers (the constructor has no side effects).
+  const SleepActivity painter(renderer, mappedInput);
+  display.setInverted(false);  // the sleep image draws in normal polarity, as in onEnter()
   ReaderUtils::applyOrientation(renderer, SETTINGS.orientation);
-  const ScopedCleanup portraitAgain{[this]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
+  const ScopedCleanup portraitAgain{[&renderer]() { renderer.setOrientation(GfxRenderer::Orientation::Portrait); }};
   deepclean::shortClean(renderer);
-  return renderCustomSleepBmp(path);
+  return painter.renderCustomSleepBmp(path);
 }
 
 void SleepActivity::onEnter() {

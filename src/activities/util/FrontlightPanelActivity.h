@@ -71,7 +71,8 @@ class FrontlightPanelActivity final : public Activity, private UiAppHost {
   // not use this — it closes the panel and promotes the repaint underneath
   // instead (GfxRenderer::promoteNextRefresh).
   bool cleanRefreshPending = false;
-  bool themeSwitched = false;  // night mode toggled while open → FULL clean on close
+  bool themeSwitched = false;    // night mode toggled while open → FULL clean on close (onExit)
+  bool refreshTileUsed = false;  // the refresh tile promoted a FULL repaint; the optional close clean must not eat it
   // Night mode toggled and its repaint of the sheet not finished yet: close is ignored until it is (Nikolai
   // 04.11.2026 — a quick close printed the sheet into the home screen). Set by the input loop, cleared by render().
   std::atomic<bool> themeApplying{false};

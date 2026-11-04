@@ -5,8 +5,6 @@
 #include <Logging.h>
 
 namespace deepclean {
-void toWhite(GfxRenderer& renderer) { (void)renderer; }
-
 void shortClean(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
   // One HALF to white — on screen the waveform itself flashes black, then white. On this reader's UC8279 it is the

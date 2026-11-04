@@ -12,12 +12,12 @@ class SleepActivity final : public Activity {
       : Activity("Sleep", renderer, mappedInput), fromTimeout(fromTimeout) {}
   void onEnter() override;
 
-  // Settled redraw of the own («Custom») sleep image drawn by the last sleep: a short clean, then the same image.
-  // False when the last sleep drew no own image. Called from the 5-minute nap before deep sleep (main.cpp).
-  static bool redrawLastCustomImage(GfxRenderer& renderer, MappedInputManager& mappedInput);
+  // The own sleep image this sleep drew (Custom, or Cover + Custom's fallback); empty when it drew none.
+  static const std::string& lastCustomImagePath();
+  // Settled redraw (main.cpp, the 5-minute timer boot): a short clean, then the own sleep image at `path` again.
+  static bool redrawCustomImage(GfxRenderer& renderer, MappedInputManager& mappedInput, const std::string& path);
 
  private:
-  bool redrawCustomImage(const std::string& path) const;
   void renderDefaultSleepScreen() const;
   void renderCustomSleepScreen() const;
   bool renderCustomSleepBmp(const std::string& path) const;

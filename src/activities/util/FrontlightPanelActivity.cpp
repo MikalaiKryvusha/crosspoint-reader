@@ -13,7 +13,6 @@
 
 #include "CrossPointSettings.h"
 #include "MappedInputManager.h"
-#include "activities/RenderLock.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
 #include "components/icons/customListIcons.h"
@@ -108,6 +107,18 @@ void FrontlightPanelActivity::persistLightSettings() {
 
 void FrontlightPanelActivity::onExit() {
   persistLightSettings();
+  // onExit() runs under the render lock (ActivityManager Pop / Replace), and the screen underneath paints next — so
+  // a promotion set here is consumed by that repaint, never by a late repaint of the sheet.
+  // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform — always,
+  // whatever «Очищать после шторки» says. Not over the photo viewer: it repaints its gray image itself, and a gray
+  // pass drops a promotion unused.
+  if (themeSwitched && !grayglass::viewerUnderneath) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+  // Settings → Display → «Очищать после шторки» (off by default): a short clean every time the sheet closes; the
+  // screen underneath repaints over it. Not over the viewer, not after a theme switch or the refresh tile (their FULL
+  // repaint is the clean, and a clean here would consume that promotion).
+  if (SETTINGS.sheetCloseClean && !themeSwitched && !refreshTileUsed && !grayglass::viewerUnderneath) {
+    deepclean::shortClean(renderer);
+  }
   Activity::onExit();
 }
 
@@ -166,6 +177,7 @@ void FrontlightPanelActivity::runTile(const int idx) {
       // about to dismiss anyway: drop the panel first and let the repaint of
       // the screen underneath carry the clean waveform instead.
       renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+      refreshTileUsed = true;
       close();
       break;
     case 2:  // Cycle the reading orientation
@@ -236,19 +248,9 @@ void FrontlightPanelActivity::toggleLight() {
 }
 
 void FrontlightPanelActivity::close() {
-  // The new theme is not on screen yet: ignore the close (Nikolai 04.11.2026). A quick close during the sheet's
-  // theme repaint let that repaint consume the FULL promotion below, and the home screen came back with a fast
-  // paint — the sheet printed into it.
+  // The new theme is not on screen yet: ignore the close (Nikolai 04.11.2026) — a quick close let the home screen
+  // come back over a half-applied theme with the sheet printed into it. The clean on the way out is in onExit().
   if (themeApplying) return;
-  RenderLock lock;
-  // A theme switched here (even switched back): the screen underneath repaints with the FULL clean waveform —
-  // always, whatever «Очищать после шторки» says.
-  if (themeSwitched) renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
-  // Settings → Display → «Очищать после шторки» (off by default): a short clean every time the sheet closes; the
-  // screen underneath repaints over it. Not over the photo viewer (it repaints itself), not after a theme switch
-  // (the FULL repaint above is the clean).
-  if (SETTINGS.sheetCloseClean && !themeSwitched && !grayglass::viewerUnderneath) deepclean::shortClean(renderer);
-  lock.unlock();
   finish();
 }
 
@@ -459,6 +461,9 @@ void FrontlightPanelActivity::buildPanelScreen(UiScreen& screen) {
 }
 
 void FrontlightPanelActivity::render(RenderLock&&) {
+  // Only a render that started after the theme toggle puts the new theme on screen; an older one ending late must
+  // not reopen the close.
+  const bool applyingTheme = themeApplying.load();
   panelBottom = computePanelBottom();
 
   // fui::sheet draws the card body, its bottom rule, and the grabber during
@@ -486,5 +491,5 @@ void FrontlightPanelActivity::render(RenderLock&&) {
   }
   cleanRefreshPending = false;
   traced = true;
-  themeApplying = false;  // the sheet is on screen in the current theme: closing is allowed again
+  if (applyingTheme) themeApplying = false;  // the sheet is on screen in the new theme: closing is allowed again
 }
