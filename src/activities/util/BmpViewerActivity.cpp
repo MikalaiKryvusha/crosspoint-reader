@@ -300,12 +300,10 @@ void BmpViewerActivity::showMessage(const char* message) {
 }
 
 void BmpViewerActivity::showCurrent() {
-  // «Загрузка» on a white sheet. Never over the framebuffer as it is: after a gray image it holds the B/W draft of
-  // that image, and the driver paints it with a clean waveform — a harsh black-and-white flash before the grays.
-  display.setInverted(SETTINGS.screenInverted != 0);  // the sheet takes the theme color
+  // No «Загрузка» popup: the current image stays on screen while the next one is prepared, then the deep clean and
+  // the gray paint. A popup left a ghost through the gray image, and drawing it over the framebuffer (the B/W draft
+  // of the gray image on screen) flashed a harsh black-and-white frame.
   renderer.setRenderMode(GfxRenderer::BW);
-  renderer.clearScreen(0xFF);
-  GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
 
   std::string path;
   if (!prepareCache(path)) {
