@@ -6,6 +6,7 @@
 #include <HalFrontlight.h>
 #include <HalStorage.h>
 #include <HalTiltSensor.h>
+#include <I18n.h>
 #include <esp_mac.h>
 
 #include <cstdio>
@@ -15,6 +16,7 @@
 #endif
 
 #include "MappedInputManager.h"
+#include "activities/RenderLock.h"
 #include "components/UITheme.h"
 
 namespace fui = freeink::ui;
@@ -40,9 +42,9 @@ enum MenuItem {
 
 // Upstream keeps these labels in English for support screenshots; the krinik build reads them in Russian.
 const char* const menuNames[AboutActivity::ITEM_COUNT] = {
-    "Устройство",          "Прошивка",       "Процессор",      "Всего объём SoC Flash", "Файловая система SD",
-    "Всего объём SD",      "Занято на SD",   "Свободно на SD", "Контроллер экрана",     "Разрешение",
-    "Тачскрин",            "Подсветка",      "Часы (RTC)",     "Датчик наклона",        "MAC-адрес",
+    "Устройство",     "Прошивка",     "Процессор",      "Всего объём SoC Flash", "Файловая система SD",
+    "Всего объём SD", "Занято на SD", "Свободно на SD", "Контроллер экрана",     "Разрешение",
+    "Тачскрин",       "Подсветка",    "Часы (RTC)",     "Датчик наклона",        "MAC-адрес",
 };
 
 // «14,5 ГБ» / «35 МБ»: GiB with one decimal (comma), MiB below 1 GiB.
@@ -155,6 +157,13 @@ void AboutActivity::onEnter() {
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
   snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   rowValues_[ITEM_MAC] = buf;
+
+  // The used-space scan below walks the whole FAT (seconds on a large card): show «Загрузка» over the previous
+  // screen first, so the press gets an answer at once. onEnter runs unlocked; take the render lock for the popup.
+  {
+    RenderLock lock;
+    GUI.drawPopup(renderer, tr(STR_LOADING_POPUP));
+  }
 
   // SD card: the volume mounted at boot. Used space scans the FAT on the first call (cached ~20 s).
   // The desktop simulator has no SD volume: it reports the host folder that stands in for the card.
