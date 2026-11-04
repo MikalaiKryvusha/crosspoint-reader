@@ -1,6 +1,7 @@
 #include "HalFrontlight.h"
 
 #include <Logging.h>
+#include <math.h>
 
 HalFrontlight HalFrontlight::instance;
 
@@ -28,6 +29,17 @@ void HalFrontlight::setBrightness(const uint8_t percent) {
 
 void HalFrontlight::setWarmth(const uint8_t warmPercent) {
   manager.setColorTemperature(warmPercent > 100 ? 100 : warmPercent);
+}
+
+uint8_t HalFrontlight::currentOutputLevel() const {
+  if (!manager.present() || !lit || lastBrightness == 0) return 0;
+  // percent curve: duty/full = (p/100)^1.6554; level curve: duty/full ≈ ((L-1)/254)^2  →  L = 1 + 254·(p/100)^0.8277
+  const float level = 1.0f + 254.0f * powf(lastBrightness / 100.0f, 1.6554f / 2.0f);
+  return level >= 255.0f ? 255 : static_cast<uint8_t>(level + 0.5f);
+}
+
+void HalFrontlight::setOutputLevel(const uint8_t level) {
+  if (manager.present()) manager.setBrightnessLevel(level);
 }
 
 void HalFrontlight::setOn(const bool on) {

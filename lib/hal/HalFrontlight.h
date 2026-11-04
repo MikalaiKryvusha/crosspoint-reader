@@ -16,6 +16,11 @@ class HalFrontlight {
   void setBrightness(uint8_t percent);
   void setWarmth(uint8_t warmPercent);
   void setOn(bool on);
+  // Fade support (sleep light linger): the 8-bit perceptual output level (SDK setBrightnessLevel, gamma 2) that gives
+  // the same duty as the current brightness percent (gamma 1.6554), so a fade starts without a jump; and a raw output
+  // write that leaves the saved brightness and the on/off state untouched. 0 = dark.
+  uint8_t currentOutputLevel() const;
+  void setOutputLevel(uint8_t level);
   // Park the PWM pads at the LED-off level and hold them through deep sleep (the saved light state is untouched;
   // begin() releases the hold on the next full boot; the settled-redraw timer path and the SD-error path never call
   // it, so there the pads stay parked — the light stays off).
