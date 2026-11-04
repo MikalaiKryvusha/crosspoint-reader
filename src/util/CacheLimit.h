@@ -11,8 +11,9 @@
 // carry no usable modification time. Cache files found on the card but missing from the queue (older firmware, a
 // lost queue) count as the oldest, in directory order.
 namespace cachelimit {
-constexpr size_t VIEWER_CACHE_FILES = 40;  // ≈ 4 MB
-constexpr size_t SLEEP_CACHE_FILES = 30;   // ≈ 3 MB
+// Nikolai 04.11.2026: «кеш на 100 файлов». A full-screen 2-bit image is ≈ 94 KB, so each cache stays under ≈ 9.4 MB.
+constexpr size_t VIEWER_CACHE_FILES = 100;
+constexpr size_t SLEEP_CACHE_FILES = 100;
 
 // `prefix` is the cache file name prefix in /.crosspoint ("view_", "sleep_"); `justWrittenPath` the full path of the
 // cache file just written.
