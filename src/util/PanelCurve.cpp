@@ -104,8 +104,8 @@ void readFromCard(const Source& src, uint8_t table[256], uint32_t& hash) {
   LOG_DBG("CRV", "Curve loaded from %s: %08x", path, static_cast<unsigned>(hash));
 }
 
-// Each curve is 256 bytes: read from the card once after boot, then kept in RAM. The checkboxes are read on every call,
-// so switching one takes effect at once.
+// Each curve is 256 bytes: read from the card on first use, then kept in RAM until a checkbox is switched (forget()).
+// The checkboxes are read on every call, so switching one takes effect at once.
 struct Cached {
   uint8_t table[256];
   uint32_t hash = 0;
@@ -132,6 +132,11 @@ bool load(uint8_t table[256], uint32_t& hash) {
   for (int i = 0; i < 256; ++i) table[i] = c.table[i];
   hash = c.hash;
   return true;
+}
+
+void forget() {
+  picturesSlot.ready = false;
+  booksSlot.ready = false;
 }
 
 const uint8_t* bookCurve(uint32_t& hash) {

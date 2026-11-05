@@ -24,4 +24,7 @@ bool load(uint8_t table[256], uint32_t& hash);
 // The books curve (images inside EPUBs): with «Калибровка книг» on, panel_curve_book.txt or the built-in book curve;
 // off — nullptr (books draw as stock). The table lives as long as the program; `hash` is 0 when off.
 const uint8_t* bookCurve(uint32_t& hash);
+// Drop both cached curves: the next draw reads the card files again. Called when «Калибровка картинок» or
+// «Калибровка книг» is switched (on the device or over the web), so a new file on the card needs no restart.
+void forget();
 }  // namespace panelcurve

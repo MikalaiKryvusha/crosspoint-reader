@@ -41,6 +41,7 @@
 #include "components/UiAppHelpers.h"
 #include "fontIds.h"
 #include "util/CalibrationCard.h"
+#include "util/PanelCurve.h"
 #include "util/PluginEvents.h"
 
 namespace fui = freeink::ui;
@@ -271,6 +272,10 @@ void SettingsActivity::toggleSelectedSetting() {
     // Toggle the boolean value using the member pointer
     const bool currentValue = SETTINGS.*(setting.valuePtr);
     SETTINGS.*(setting.valuePtr) = !currentValue;
+    if (setting.valuePtr == &CrossPointSettings::panelCalPictures ||
+        setting.valuePtr == &CrossPointSettings::panelCalBooks) {
+      panelcurve::forget();  // a curve file put on the card since boot takes effect now
+    }
   } else if (setting.type == SettingType::ENUM && setting.valuePtr != nullptr) {
     const uint8_t currentValue = SETTINGS.*(setting.valuePtr);
     const auto enumLabels = setting.enumLabels();
