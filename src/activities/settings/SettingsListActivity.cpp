@@ -28,22 +28,17 @@ SettingsListActivity::SettingsListActivity(GfxRenderer& renderer, MappedInputMan
 void SettingsListActivity::onEnter() {
   UiListActivity::onEnter();
   rebuildRows();
+  // Build the requested route before the manager publishes the first screen.
+  if (pendingSection < SettingsSection::End) {
+    const SettingsSection section = pendingSection;
+    pendingSection = SettingsSection::End;
+    openSection(section);
+  }
 }
 
 void SettingsListActivity::onExit() {
   UiListActivity::onExit();
   UITheme::getInstance().reload();  // Re-apply theme in case it was changed
-}
-
-void SettingsListActivity::loop() {
-  // Only top-level groups open here; End and the sub-screens past it (ScreenClean) mean «none».
-  if (pendingSection < SettingsSection::End) {
-    const SettingsSection section = pendingSection;
-    pendingSection = SettingsSection::End;
-    openSection(section);
-    return;
-  }
-  UiListActivity::loop();
 }
 
 // Rebuilds row labels; call when entering and after a section returns (the

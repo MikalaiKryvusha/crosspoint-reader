@@ -193,6 +193,14 @@ void SettingsActivity::onEnter() {
   syncQuickResumeTimeoutForSleepScreen(/*sleepScreenChanged=*/true, /*quickResumeTimeoutChanged=*/false);
 
   rebuildSettings();
+  // Reconstruct the calibration return route before any parent screen is drawn.
+  if (section == SettingsSection::Display && pendingSettingsSubSection != SettingsSection::End) {
+    const SettingsSection sub = pendingSettingsSubSection;
+    pendingSettingsSubSection = SettingsSection::End;
+    if (auto activity = makeUniqueNoThrow<SettingsActivity>(renderer, mappedInput, sub)) {
+      startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
+    }
+  }
 }
 
 // Rebuilds rowValues_/rowItems_ (label + actionValue) for settings.
@@ -240,15 +248,6 @@ void SettingsActivity::applyUiSettingChange(uint8_t CrossPointSettings::* valueP
 }
 
 bool SettingsActivity::handleCustomInput() {
-  // Back from a calibration screen: Settings opened at Display, now down into «Калибровка экрана».
-  if (section == SettingsSection::Display && pendingSettingsSubSection != SettingsSection::End) {
-    const SettingsSection sub = pendingSettingsSubSection;
-    pendingSettingsSubSection = SettingsSection::End;
-    if (auto activity = makeUniqueNoThrow<SettingsActivity>(renderer, mappedInput, sub)) {
-      startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
-    }
-    return true;
-  }
   return optionPopup.handleInput(mappedInput, [this] { requestUpdate(); });
 }
 
@@ -349,7 +348,7 @@ void SettingsActivity::toggleSelectedSetting() {
       case SettingAction::CalibrationPicturesScreen:
       case SettingAction::CalibrationBooksScreen: {
         // The card is written once (BMP 1.15 MB, EPUB 0.4 MB) and opened like any image / book; Back returns to
-        // Settings → Display.
+        // Settings → Display → Screen calibration.
         std::string path;
         const bool landscape = SETTINGS.orientation == CrossPointSettings::LANDSCAPE_CW ||
                                SETTINGS.orientation == CrossPointSettings::LANDSCAPE_CCW;

@@ -69,9 +69,9 @@ void useBuiltIn(const Source& src, uint8_t table[256], uint32_t& hash) {
   LOG_DBG("CRV", "Built-in curve %s: %08x", src.rootPath, static_cast<unsigned>(hash));
 }
 
-// Reads the card file (root first, then the hidden folder) or falls back to the built-in curve.
+// Prefer the configuration directory, retaining root files as a read-only legacy fallback.
 void readFromCard(const Source& src, uint8_t table[256], uint32_t& hash) {
-  const char* path = Storage.exists(src.rootPath) ? src.rootPath : src.hiddenPath;
+  const char* path = Storage.exists(src.hiddenPath) ? src.hiddenPath : src.rootPath;
   std::string text;
   if (!Storage.exists(path) || !Storage.readFileToString("CRV", path, 4096, text)) return useBuiltIn(src, table, hash);
 

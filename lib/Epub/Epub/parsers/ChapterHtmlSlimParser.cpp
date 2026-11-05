@@ -1433,10 +1433,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
           if (!self->pendingAnchorId.empty()) {
             self->flushPendingAnchor();
           }
-          const bool inText =
-              !isTocAnchor && self->tableDepth == 0 && !isHeaderOrBlock(name) && !isTableStructuralTag(name) &&
-              !matches(name, IMAGE_TAGS, std::size(IMAGE_TAGS)) &&
-              ((self->currentTextBlock && !self->currentTextBlock->isEmpty()) || self->partWordBufferIndex > 0);
+          const bool inText = !isTocAnchor && self->tableDepth == 0 && !isHeaderOrBlock(name) &&
+                              !isTableStructuralTag(name) && !matches(name, IMAGE_TAGS, std::size(IMAGE_TAGS)) &&
+                              self->currentTextBlock;
           if (inText) {
             self->inlineAnchorIds.push_back({idValue, self->visibleTextOffset});
           } else {
@@ -1990,6 +1989,9 @@ void XMLCALL ChapterHtmlSlimParser::startElement(void* userData, const XML_Char*
         self->syntheticCharacterData = true;
         self->characterData(userData, alt.c_str(), alt.length());
         self->syntheticCharacterData = false;
+        // Finish the placeholder before later source IDs can share its canonical offset.
+        self->flushPartWordBuffer();
+        self->startNewTextBlock(self->blockStyleStack.back().withoutTop().withoutBottom(), false);
         // Skip any child content (skip until parent as we pre-advanced depth above)
         self->skipUntilDepth = self->depth - 1;
         return;

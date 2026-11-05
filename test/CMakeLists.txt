@@ -117,3 +117,4 @@ add_test(NAME recursive_dictionary COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT
 
 add_subdirectory(sleep_image_cursor)
 add_subdirectory(calibration_card)
+add_subdirectory(panel_curve)

@@ -2542,3 +2542,148 @@ TEST_F(ChapterAnchorPageTest, InlineTargetBeforeAnImageFollowsTheImagePlaceholde
   ASSERT_EQ(pageOfWord("[Image:"), std::optional<uint16_t>(1));
   EXPECT_EQ(anchorPage("image"), pageOfWord("[Image:"));
 }
+
+TEST_F(ChapterAnchorPageTest, InlineTargetAfterALongImagePlaceholderFollowsItsText) {
+  parser.imageRendering = 1;
+  open("p", nullptr);
+  const auto alt = words(13 * 8);
+  const XML_Char* image[] = {"src", "missing.png", "alt", alt.c_str(), nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", image);
+  close("img");
+  text(" ");
+  const XML_Char* anchor[] = {"id", "after", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "a", anchor);
+  close("a");
+  text("TARGET");
+  close("p");
+  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(pageOfWord("TARGET").has_value());
+  EXPECT_EQ(anchorPage("after"), pageOfWord("TARGET"));
+}
+
+TEST_F(ChapterAnchorPageTest, InlineTargetImmediatelyAfterALongImagePlaceholderFollowsItsText) {
+  parser.imageRendering = 1;
+  open("p", nullptr);
+  const auto alt = words(13 * 8);
+  const XML_Char* image[] = {"src", "missing.png", "alt", alt.c_str(), nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", image);
+  close("img");
+  const XML_Char* anchor[] = {"id", "after", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "a", anchor);
+  close("a");
+  text("TARGET");
+  close("p");
+  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(pageOfWord("TARGET").has_value());
+  EXPECT_EQ(anchorPage("after"), pageOfWord("TARGET"));
+  EXPECT_EQ(parser.visibleTextOffset, 6u);
+}
+
+TEST_F(ChapterAnchorPageTest, InlineTargetImmediatelyAfterASecondImageFollowsItsText) {
+  parser.imageRendering = 1;
+  open("p", nullptr);
+  const auto alt = words(13 * 8);
+  const XML_Char* first[] = {"src", "first.png", "alt", alt.c_str(), nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", first);
+  close("img");
+  const XML_Char* second[] = {"src", "second.png", "alt", alt.c_str(), nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", second);
+  close("img");
+  const XML_Char* anchor[] = {"id", "after-second", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "a", anchor);
+  close("a");
+  text("TARGET");
+  close("p");
+  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(pageOfWord("TARGET").has_value());
+  EXPECT_EQ(anchorPage("after-second"), pageOfWord("TARGET"));
+  EXPECT_EQ(parser.visibleTextOffset, 6u);
+}
+
+TEST_F(ChapterAnchorPageTest, InlineTargetAfterAnImageStartsALongTextBlock) {
+  parser.imageRendering = 1;
+  open("p", nullptr);
+  const auto alt = words(13 * 8);
+  const XML_Char* image[] = {"src", "missing.png", "alt", alt.c_str(), nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", image);
+  close("img");
+  const XML_Char* anchor[] = {"id", "after", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "a", anchor);
+  close("a");
+  const auto content = "TARGET " + words(13 * 8);
+  text(content);
+  close("p");
+  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(pageOfWord("TARGET").has_value());
+  ASSERT_LT(*pageOfWord("TARGET"), parser.completedPageCount);
+  EXPECT_EQ(anchorPage("after"), pageOfWord("TARGET"));
+  EXPECT_EQ(parser.visibleTextOffset, content.size());
+}
+
+TEST_F(ChapterAnchorPageTest, InlineTargetAfterASecondImageIgnoresTheFirstPlaceholder) {
+  parser.imageRendering = 1;
+  open("p", nullptr);
+  const auto alt = words(13 * 8);
+  const XML_Char* first[] = {"src", "first.png", "alt", alt.c_str(), nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", first);
+  close("img");
+  text(" a ");
+  const XML_Char* second[] = {"src", "second.png", "alt", "short", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", second);
+  close("img");
+  text(" ");
+  const XML_Char* anchor[] = {"id", "after-second", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "a", anchor);
+  close("a");
+  text("TARGET");
+  close("p");
+  ASSERT_TRUE(parser.finishParse());
+  // Each fallback ends its own block before the following source text.
+  ASSERT_EQ(pageOfWord("TARGET"), std::optional<uint16_t>(2));
+  EXPECT_EQ(anchorPage("after-second"), pageOfWord("TARGET"));
+}
+
+TEST_F(ChapterAnchorPageTest, InlineTargetBeforeALongImageStaysWithItsFirstLine) {
+  parser.imageRendering = 1;
+  open("p", nullptr);
+  const XML_Char* anchor[] = {"id", "before", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "a", anchor);
+  close("a");
+  const auto alt = words(13 * 8);
+  const XML_Char* image[] = {"src", "missing.png", "alt", alt.c_str(), nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", image);
+  close("img");
+  close("p");
+  ASSERT_TRUE(parser.finishParse());
+  ASSERT_TRUE(pageOfWord("[Image:").has_value());
+  EXPECT_EQ(anchorPage("before"), pageOfWord("[Image:"));
+  EXPECT_EQ(parser.visibleTextOffset, 0u);
+}
+
+TEST_F(ChapterAnchorPageTest, ImageFallbackRestoresTheParentStyleAndSourceRange) {
+  parser.imageRendering = 1;
+  parser.paragraphAlignment = static_cast<uint8_t>(CssTextAlign::None);
+  open("p", "text-align: right");
+  const XML_Char* image[] = {"src", "missing.png", "alt", "placeholder", nullptr};
+  ChapterHtmlSlimParser::startElement(&parser, "img", image);
+  close("img");
+  text("TARGET");
+  close("p");
+  ASSERT_TRUE(parser.finishParse());
+  bool found = false;
+  for (const auto& page : pages) {
+    for (const auto& element : page->elements) {
+      if (element->getTag() != TAG_PageLine) continue;
+      const auto& block = *static_cast<const PageLine&>(*element).getBlock();
+      for (uint16_t i = 0; i < block.wordCount(); ++i) {
+        if (std::strcmp(block.wordText(i), "TARGET") != 0) continue;
+        found = true;
+        EXPECT_EQ(block.getBlockStyle().alignment, CssTextAlign::Right);
+        EXPECT_EQ(block.wordStyle(i) & EpdFontFamily::ITALIC, 0);
+        EXPECT_EQ(block.wordSourceRange(i).start, 0u);
+        EXPECT_EQ(block.wordSourceRange(i).end, 6u);
+      }
+    }
+  }
+  EXPECT_TRUE(found);
+}

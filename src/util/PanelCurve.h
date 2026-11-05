@@ -9,7 +9,7 @@
 // makes the file from a photo of the calibration card: KEINKT Calibrator, https://github.com/MikalaiKryvusha/KEINKT
 // (calibrator/index.html).
 namespace panelcurve {
-// The card root wins: a hidden folder is not shown by Finder / Explorer, the root is where users put files.
+// Curves live beside the firmware settings. Root paths remain readable for older configurations.
 constexpr char ROOT_PATH[] = "/panel_curve.txt";
 constexpr char PATH[] = "/.crosspoint/panel_curve.txt";
 
