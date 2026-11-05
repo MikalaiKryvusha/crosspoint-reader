@@ -104,8 +104,9 @@ bool OtaUpdater::isUpdateNewer() const {
   if (strncmp(currentVersion, "cp-", 3) == 0) currentVersion += 3;
 
   // semantic version check (only match on 3 segments)
-  sscanf(latestVersion.c_str(), "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch);
-  sscanf(currentVersion, "%d.%d.%d", &currentMajor, &currentMinor, &currentPatch);
+  // A version that does not start with three numbers (an old «v1.5.0» tag, «dev-simulator») is never «newer».
+  if (sscanf(latestVersion.c_str(), "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch) != 3) return false;
+  if (sscanf(currentVersion, "%d.%d.%d", &currentMajor, &currentMinor, &currentPatch) != 3) return false;
 
   /*
    * Compare major versions.
