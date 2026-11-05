@@ -99,7 +99,9 @@ bool OtaUpdater::isUpdateNewer() const {
   int currentMajor, currentMinor, currentPatch;
   int latestMajor, latestMinor, latestPatch;
 
-  const auto currentVersion = CROSSPOINT_VERSION;
+  // A downstream name «cp-<CrossPoint version>-…» (krinik) compares by the CrossPoint version after the prefix.
+  const char* currentVersion = CROSSPOINT_VERSION;
+  if (strncmp(currentVersion, "cp-", 3) == 0) currentVersion += 3;
 
   // semantic version check (only match on 3 segments)
   sscanf(latestVersion.c_str(), "%d.%d.%d", &latestMajor, &latestMinor, &latestPatch);
