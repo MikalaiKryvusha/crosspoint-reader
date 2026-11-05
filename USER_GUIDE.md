@@ -249,7 +249,15 @@ Settings are grouped into **System**, **Display**, **Reader**, **Controls**, **L
   - "In Reader" - Show battery percentage everywhere except in reading mode
   - "Always" - Always hide battery percentage
 
-- **Refresh Frequency**: Set how often the screen does a full refresh while reading to reduce ghosting; options are every 1, 5, 10, 15, or 30 pages.
+- **Screen Calibration**: The pictures and books calibration screens draw a card of 33 gray steps; photograph it and
+  compute the correction with [KEINKT Calibrator](https://github.com/MikalaiKryvusha/KEINKT), then put
+  `panel_curve.txt` (pictures, sleep images) or `panel_curve_book.txt` (images in books) into the card root and wake the
+  reader from sleep. The Pictures Calibration (on by default) and Books Calibration (off) checkboxes apply the curves;
+  off, a calibration screen shows the panel as it is (measure), on — with the correction (check).
+
+- **Screen Cleaning**: A sub-screen with every screen clean and refresh option:
+
+  - **Refresh Frequency**: Set how often the screen does a full refresh while reading to reduce ghosting; options are every 1, 5, 10, 15, or 30 pages.
 
 - **UI Theme**: Set which UI theme to use:
   

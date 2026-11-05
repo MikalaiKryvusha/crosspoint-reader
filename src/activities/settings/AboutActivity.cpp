@@ -172,22 +172,29 @@ void AboutActivity::onEnter() {
   std::error_code spaceError;
   const auto space = std::filesystem::space(simSd && *simSd ? simSd : "./fs_", spaceError);
   const uint64_t sdTotal = spaceError ? 0 : space.capacity;
-  const auto sdUsedBytes = [&] { return spaceError ? 0 : space.capacity - space.available; };
+  const auto sdUsedBytes = [&](uint64_t& used) {
+    used = spaceError ? 0 : space.capacity - space.available;
+    return !spaceError;
+  };
   const auto sdFatType = [] { return static_cast<uint8_t>(0); };
 #else
   const uint64_t sdTotal = Storage.sdTotalBytes();
-  const auto sdUsedBytes = [] { return Storage.sdUsedBytes(); };
+  const auto sdUsedBytes = [](uint64_t& used) { return Storage.sdUsedBytes(used); };
   const auto sdFatType = [] { return Storage.sdFatType(); };
 #endif
   if (sdTotal == 0) {
     rowValues_[ITEM_SD_SIZE] = "нет карты";
     rowValues_[ITEM_SD_FS] = rowValues_[ITEM_SD_USED] = rowValues_[ITEM_SD_FREE] = "—";
   } else {
-    const uint64_t sdUsed = sdUsedBytes();
     rowValues_[ITEM_SD_SIZE] = formatBytes(sdTotal);
     rowValues_[ITEM_SD_FS] = fatTypeName(sdFatType());
-    rowValues_[ITEM_SD_USED] = formatBytes(sdUsed);
-    rowValues_[ITEM_SD_FREE] = formatBytes(sdUsed <= sdTotal ? sdTotal - sdUsed : 0);
+    uint64_t sdUsed = 0;
+    if (sdUsedBytes(sdUsed)) {
+      rowValues_[ITEM_SD_USED] = formatBytes(sdUsed);
+      rowValues_[ITEM_SD_FREE] = formatBytes(sdUsed <= sdTotal ? sdTotal - sdUsed : 0);
+    } else {
+      rowValues_[ITEM_SD_USED] = rowValues_[ITEM_SD_FREE] = "Ошибка.";
+    }
   }
 }
 

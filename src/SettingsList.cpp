@@ -41,15 +41,14 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
       "sleepTimeoutMinutes", StrId::STR_CAT_SYSTEM));
   emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                          {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_SLEEP_IMAGE_ORDER, &CrossPointSettings::sleepImageOrder,
-                         {StrId::STR_SLEEP_ORDER_RANDOM, StrId::STR_SLEEP_ORDER_SEQUENTIAL, StrId::STR_SLEEP_ORDER_SINGLE},
-                         "sleepImageOrder",
-                         StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(
-      StrId::STR_SLEEP_ORIENTATION, &CrossPointSettings::sleepOrientation,
-      {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_ORIENTATION_INVERTED, StrId::STR_LANDSCAPE_CCW,
-       StrId::STR_SLEEP_ORIENTATION_BY_IMAGE},
-      "sleepOrientation", StrId::STR_CAT_DISPLAY));
+      StrId::STR_SLEEP_IMAGE_ORDER, &CrossPointSettings::sleepImageOrder,
+      {StrId::STR_SLEEP_ORDER_RANDOM, StrId::STR_SLEEP_ORDER_SEQUENTIAL, StrId::STR_SLEEP_ORDER_SINGLE},
+      "sleepImageOrder", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_SLEEP_ORIENTATION, &CrossPointSettings::sleepOrientation,
+                         {StrId::STR_PORTRAIT, StrId::STR_LANDSCAPE_CW, StrId::STR_ORIENTATION_INVERTED,
+                          StrId::STR_LANDSCAPE_CCW, StrId::STR_SLEEP_ORIENTATION_BY_IMAGE},
+                         "sleepOrientation", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SLEEP_LIGHT_LINGER, &CrossPointSettings::sleepLightLinger,
                          {StrId::STR_STATE_OFF, StrId::STR_SECONDS_2, StrId::STR_SECONDS_5, StrId::STR_SECONDS_10},
                          "sleepLightLinger", StrId::STR_CAT_DISPLAY));
@@ -82,16 +81,23 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
                          {StrId::STR_PAGES_1, StrId::STR_PAGES_5, StrId::STR_PAGES_10, StrId::STR_PAGES_15,
                           StrId::STR_PAGES_30, StrId::STR_NEVER},
                          "refreshFrequency", StrId::STR_CAT_DISPLAY));
+  // Device: Display → «Настройки очисток экрана» (SettingsSection::ScreenClean, Nikolai 05.11.2026), in this order.
   emit(SettingInfo::Enum(StrId::STR_HOME_FULL_REFRESH, &CrossPointSettings::homeFullRefresh,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "homeFullRefresh", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_SLEEP_SETTLED_REDRAW, &CrossPointSettings::sleepSettledRedraw,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sleepSettledRedraw", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_IMAGE_SETTLED_REDRAW, &CrossPointSettings::imageSettledRedraw,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "imageSettledRedraw", StrId::STR_CAT_DISPLAY));
   emit(SettingInfo::Enum(StrId::STR_SHEET_CLOSE_CLEAN, &CrossPointSettings::sheetCloseClean,
                          {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "sheetCloseClean", StrId::STR_CAT_DISPLAY));
-  emit(SettingInfo::Enum(StrId::STR_MENU_EXIT_CLEAN, &CrossPointSettings::menuExitClean,
-                         {StrId::STR_STATE_OFF, StrId::STR_STATE_ON}, "menuExitClean", StrId::STR_CAT_DISPLAY));
+  // Device: Display → «Калибровка экрана» (SettingsSection::ScreenCalibration).
+  emit(SettingInfo::Toggle(StrId::STR_PANEL_CAL_PICTURES, &CrossPointSettings::panelCalPictures, "panelCalPictures",
+                           StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Toggle(StrId::STR_PANEL_CAL_BOOKS, &CrossPointSettings::panelCalBooks, "panelCalBooks",
+                           StrId::STR_CAT_DISPLAY));
+  // Delays, index = CrossPointSettings::REDRAW_DELAY; new keys, the old on/off ones migrate in fromJson().
+  emit(SettingInfo::Enum(StrId::STR_SLEEP_SETTLED_REDRAW, &CrossPointSettings::sleepSettledRedraw,
+                         {StrId::STR_STATE_OFF, StrId::STR_AFTER_1_MIN, StrId::STR_AFTER_2_MIN, StrId::STR_AFTER_5_MIN},
+                         "sleepRedrawDelay", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Enum(StrId::STR_IMAGE_SETTLED_REDRAW, &CrossPointSettings::imageSettledRedraw,
+                         {StrId::STR_STATE_OFF, StrId::STR_AFTER_1_MIN, StrId::STR_AFTER_2_MIN, StrId::STR_AFTER_5_MIN},
+                         "imageRedrawDelay", StrId::STR_CAT_DISPLAY));
 
   // --- Reader ---
   // Built-in font-family entry. Replaced per-call with a registry-aware

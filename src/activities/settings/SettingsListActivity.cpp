@@ -36,7 +36,8 @@ void SettingsListActivity::onExit() {
 }
 
 void SettingsListActivity::loop() {
-  if (pendingSection != SettingsSection::End) {
+  // Only top-level groups open here; End and the sub-screens past it (ScreenClean) mean «none».
+  if (pendingSection < SettingsSection::End) {
     const SettingsSection section = pendingSection;
     pendingSection = SettingsSection::End;
     openSection(section);

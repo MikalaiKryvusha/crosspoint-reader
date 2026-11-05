@@ -7,7 +7,23 @@
 
 // Top-level groups on the Settings screen, in display order. End doubles as
 // "no section" where one is optional.
-enum class SettingsSection : uint8_t { General, Display, Reader, Controls, Library, Network, End };
+// ScreenClean and ScreenCalibration sit past End: not top-level groups, they are sub-screens of Display («Настройки
+// очисток экрана», «Калибровка экрана», Nikolai 05.11.2026) and never index SETTINGS_SECTION_TITLES.
+enum class SettingsSection : uint8_t {
+  General,
+  Display,
+  Reader,
+  Controls,
+  Library,
+  Network,
+  End,
+  ScreenClean,
+  ScreenCalibration
+};
+
+// A sub-screen of Display to reopen when Settings opens at Display (the calibration screens return there, Nikolai
+// 05.11.2026); End — none. Read and cleared by SettingsActivity.
+inline SettingsSection pendingSettingsSubSection = SettingsSection::End;
 
 inline constexpr size_t SETTINGS_SECTION_COUNT = static_cast<size_t>(SettingsSection::End);
 

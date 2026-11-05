@@ -1,5 +1,10 @@
 #include "SleepActivity.h"
 
+#include "SleepImageCursor.h"
+#ifndef SIMULATOR
+#include <esp_attr.h>
+#endif
+
 #include <BitmapHelpers.h>
 #include <BmpToBmpConverter.h>
 #include <Epub.h>
@@ -57,7 +62,7 @@ void cleanBeforeAbsoluteGray(GfxRenderer& renderer) {
 // Before a full-screen absolute/direct gray sleep image: a white sheet first. On the X4 Pro the gray waveform started
 // straight over the menu or page showed the image in a harsh burnt-out contrast before it settled to gray
 // (04.11.2026); from white it does not. The sleep moment tolerates the one flash; the ghost of what was on screen
-// before is the settled redraw's job (5 minutes later).
+// before is the settled redraw's job («Обновлять заставку» minutes later).
 void cleanToWhiteBeforeAbsoluteGray(GfxRenderer& renderer) {
 #if FREEINK_DEVICE_X4PRO
   deepclean::shortClean(renderer);
@@ -529,6 +534,21 @@ bool findNextValidSleepImage(HalFile& dir, const SleepRecentKind recentKind, cha
 // path order across both sleep directories, wrapping to the first. The folders are rescanned on
 // every sleep, so added and removed images take effect at once. One pass, no name list in RAM.
 constexpr char SLEEP_LAST_SHOWN_PATH[] = "/.crosspoint/sleep_last.txt";
+#ifdef SIMULATOR
+SleepImageCursor unsavedSleepCursor{};
+#else
+RTC_DATA_ATTR SleepImageCursor unsavedSleepCursor{};
+#endif
+static_assert(MAX_SLEEP_FILE_NAME_LEN + 32 <= SleepImageCursor::PATH_CAPACITY);
+
+void saveSleepImageCursor(const std::string& selectedPath) {
+  Storage.mkdir("/.crosspoint");
+  const bool saved = Storage.writeFile(SLEEP_LAST_SHOWN_PATH, String(selectedPath.c_str()));
+  if (!saved) LOG_ERR("SLP", "Failed to save last sleep image");
+  if (!unsavedSleepCursor.record(selectedPath, saved)) {
+    LOG_ERR("SLP", "Sleep image path exceeds retained cursor capacity");
+  }
+}
 
 bool selectNextSleepFileInOrder(const char* firstDirPath, const char* secondDirPath, std::string& selectedPath) {
   auto name = makeUniqueNoThrow<char[]>(MAX_SLEEP_FILE_NAME_LEN);
@@ -541,6 +561,7 @@ bool selectNextSleepFileInOrder(const char* firstDirPath, const char* secondDirP
     Storage.readFileToString("SLP", SLEEP_LAST_SHOWN_PATH, MAX_SLEEP_FILE_NAME_LEN + 32, lastShown);
   }
 
+  const char* cursor = unsavedSleepCursor.lastShown(lastShown.c_str());
   std::string first;
   std::string next;
   std::string path;
@@ -552,16 +573,13 @@ bool selectNextSleepFileInOrder(const char* firstDirPath, const char* secondDirP
       path += '/';
       path += name.get();
       if (first.empty() || path < first) first = path;
-      if (path > lastShown && (next.empty() || path < next)) next = path;
+      if (path > cursor && (next.empty() || path < next)) next = path;
     }
   }
   if (first.empty()) return false;
 
   selectedPath = next.empty() ? first : next;
-  Storage.mkdir("/.crosspoint");
-  if (!Storage.writeFile(SLEEP_LAST_SHOWN_PATH, String(selectedPath.c_str()))) {
-    LOG_ERR("SLP", "Failed to save last sleep image");
-  }
+  saveSleepImageCursor(selectedPath);
   return true;
 }
 
@@ -578,6 +596,7 @@ bool selectSleepFileAtRandom(const char* firstDirPath, const char* secondDirPath
     Storage.readFileToString("SLP", SLEEP_LAST_SHOWN_PATH, MAX_SLEEP_FILE_NAME_LEN + 32, lastShown);
   }
 
+  const char* cursor = unsavedSleepCursor.lastShown(lastShown.c_str());
   std::string path;
   uint32_t count = 0;
   bool lastPresent = false;
@@ -589,7 +608,7 @@ bool selectSleepFileAtRandom(const char* firstDirPath, const char* secondDirPath
       path = dirPath;
       path += '/';
       path += name.get();
-      if (path == lastShown) lastPresent = true;
+      if (path == cursor) lastPresent = true;
     }
   }
   if (count == 0) return false;
@@ -603,11 +622,10 @@ bool selectSleepFileAtRandom(const char* firstDirPath, const char* secondDirPath
       path = dirPath;
       path += '/';
       path += name.get();
-      if (skipLast && path == lastShown) continue;
+      if (skipLast && path == cursor) continue;
       if (target-- != 0) continue;
       selectedPath = path;
-      Storage.mkdir("/.crosspoint");
-      Storage.writeFile(SLEEP_LAST_SHOWN_PATH, String(selectedPath.c_str()));
+      saveSleepImageCursor(selectedPath);
       return true;
     }
   }

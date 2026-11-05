@@ -2,6 +2,7 @@
 
 #include <BlePageTurner.h>
 #include <BoardConfig.h>
+#include <Epub/blocks/ImageBlock.h>
 #include <FontCacheManager.h>
 #include <FsHelpers.h>
 #include <HalDisplay.h>
@@ -32,6 +33,7 @@
 #include "settings/SettingsListActivity.h"
 #include "util/BmpViewerActivity.h"
 #include "util/FlashlightActivity.h"
+#include "util/PanelCurve.h"
 #if KRINIK_MAMA
 #include "util/MamaActivity.h"
 #endif
@@ -297,9 +299,7 @@ void ActivityManager::goToUsbDrive() {
 #endif
 }
 
-void ActivityManager::goToFlashlight() {
-  replaceActivity(std::make_unique<FlashlightActivity>(renderer, mappedInput));
-}
+void ActivityManager::goToFlashlight() { replaceActivity(std::make_unique<FlashlightActivity>(renderer, mappedInput)); }
 #if KRINIK_MAMA
 void ActivityManager::goToMama() { replaceActivity(std::make_unique<MamaActivity>(renderer, mappedInput)); }
 #endif
@@ -351,6 +351,10 @@ void ActivityManager::goToReader(std::string path, const bool allowFastInitialRe
     return;
   }
 
+  // Display → Screen calibration → «Калибровка книг»: the curve images inside this book are decoded through.
+  uint32_t bookCurveHash = 0;
+  const uint8_t* bookCurve = panelcurve::bookCurve(bookCurveHash);
+  ImageBlock::setToneCurve(bookCurve, bookCurveHash);
   auto activity = ReaderActivity::create(renderer, mappedInput, std::move(path), allowFastInitialRefresh);
   if (activity) {
     replaceActivity(std::move(activity));
@@ -370,6 +374,7 @@ void ActivityManager::goToFullScreenMessage(std::string message, EpdFontFamily::
 }
 
 void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefresh) {
+  pendingSettingsSubSection = SettingsSection::End;  // a pending return into a Display sub-screen is void now
   if (initialMenuItem == HomeMenuItem::NONE && currentActivity) {
     const auto& activityName = currentActivity->name;
     if (activityName == "FileBrowser") {

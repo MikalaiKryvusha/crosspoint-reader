@@ -15,8 +15,8 @@ class Bitmap;
 // Image viewer (BMP, JPEG, PNG). Every image is shown in gray through the panel tone curve: it is prepared once into
 // a screen-ready 2-bit BMP cache (/.crosspoint/view_*.bmp) while the previous image stays on screen, then the panel
 // gets the gray image painted from the cache (its base pass cleans to white first; a settled repaint follows after
-// 2 minutes, Settings → Display → «Перерисовка картинок»). Prev/next by buttons, swipes and side taps, wrapping
-// around the folder; a long tap rotates the view by 90°. The curve is loaded once and kept in RAM while open.
+// «Обновлять картинки» minutes, Settings → Display → Screen Cleaning). Prev/next by buttons, swipes and side taps,
+// wrapping around the folder; a long tap rotates the view by 90°. The curve is loaded once and kept in RAM while open.
 class BmpViewerActivity final : public Activity {
  public:
   BmpViewerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string filePath);
@@ -50,10 +50,11 @@ class BmpViewerActivity final : public Activity {
   uint32_t curveHash = 0;
   bool curveReady = false;
   bool orientationSaved = false;
-  bool goingToSleep = false;  // set before the sleep screen replaces the viewer
-  int viewTurns = 0;          // long-tap quarter turns, clockwise
-  uint32_t paintedVisit = 0;  // screen visit of the last paint; a newer one means a sheet covered the image
-  unsigned long paintedAtMs = 0;      // when the current image was painted
-  bool settledRedrawPending = false;  // one clean repaint after the remnant drains (2 min), then none until next paint
+  bool goingToSleep = false;      // set before the sleep screen replaces the viewer
+  int viewTurns = 0;              // long-tap quarter turns, clockwise
+  uint32_t paintedVisit = 0;      // screen visit of the last paint; a newer one means a sheet covered the image
+  unsigned long paintedAtMs = 0;  // when the current image was painted
+  bool settledRedrawPending =
+      false;  // one clean repaint after the remnant drains (the setting's delay), then none until next paint
   GfxRenderer::Orientation savedOrientation = GfxRenderer::Orientation::Portrait;
 };

@@ -232,6 +232,16 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
     lineSpacing = legacyValue + 1 < LINE_COMPRESSION_COUNT ? static_cast<uint8_t>(legacyValue + 1) : LINE_SPACING_120;
     needsResave = true;
   }
+  // Settled redraws were on/off under "sleepSettledRedraw"/"imageSettledRedraw" with fixed 5 / 2 min delays; now a
+  // delay picker under new keys (Nikolai 05.11.2026). On keeps the old delay, off stays off.
+  if (doc["sleepRedrawDelay"].isNull() && doc["sleepSettledRedraw"].is<uint8_t>()) {
+    sleepSettledRedraw = doc["sleepSettledRedraw"].as<uint8_t>() ? REDRAW_5_MIN : REDRAW_OFF;
+    needsResave = true;
+  }
+  if (doc["imageRedrawDelay"].isNull() && doc["imageSettledRedraw"].is<uint8_t>()) {
+    imageSettledRedraw = doc["imageSettledRedraw"].as<uint8_t>() ? REDRAW_2_MIN : REDRAW_OFF;
+    needsResave = true;
+  }
   // Front button remap — managed by RemapFrontButtons sub-activity, not in SettingsList.
   frontButtonBack = clamp(doc["frontButtonBack"] | (uint8_t)FRONT_HW_BACK, FRONT_BUTTON_HARDWARE_COUNT, FRONT_HW_BACK);
   frontButtonConfirm =

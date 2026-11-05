@@ -273,12 +273,16 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   // Krinik: a short clean every time the control center closes over the menus («Clean After Control Center»).
   // Off by default (Nikolai 04.11.2026).
   uint8_t sheetCloseClean = 0;
-  // Krinik: a short clean when leaving a viewer image for the menus («Redraw Menus»).
-  uint8_t menuExitClean = 1;
   // Krinik (X4 Pro, 04.11.2026): settled redraws — the gray image is repainted once with a short clean after the
-  // remnant charge of the frames drawn before it has drained: the sleep image 5 min after sleep, a viewer image 2 min
-  // after it opened.
-  uint8_t sleepSettledRedraw = 1;
+  // remnant charge of the frames drawn before it has drained. Off or a delay (Nikolai 05.11.2026): the sleep image
+  // («Обновлять заставку», 5 min by default) and a viewer image («Обновлять картинки», 2 min by default). Saved under
+  // new keys; the old on/off keys migrate to the old fixed delays (CrossPointSettings.cpp).
+  enum REDRAW_DELAY { REDRAW_OFF = 0, REDRAW_1_MIN, REDRAW_2_MIN, REDRAW_5_MIN, REDRAW_DELAY_COUNT };
+  static uint32_t redrawDelayMinutes(const uint8_t value) {
+    static constexpr uint32_t kMinutes[] = {0, 1, 2, 5};
+    return kMinutes[value < REDRAW_DELAY_COUNT ? value : 0];
+  }
+  uint8_t sleepSettledRedraw = REDRAW_5_MIN;
   // Krinik (Nikolai 04.11.2026): how long the frontlight stays on over the fresh sleep image before the reader sleeps
   // (index into Off / 2 s / 5 s / 10 s; a power-button press in that window wakes the reader).
   enum SLEEP_LIGHT_LINGER { SLEEP_LIGHT_OFF = 0, SLEEP_LIGHT_2S, SLEEP_LIGHT_5S, SLEEP_LIGHT_10S, SLEEP_LIGHT_COUNT };
@@ -290,7 +294,13 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     static constexpr uint32_t kMs[] = {0, 200, 500, 1000};
     return kMs[lightRamp < LIGHT_RAMP_COUNT ? lightRamp : 0];
   }
-  uint8_t imageSettledRedraw = 1;
+  uint8_t imageSettledRedraw = REDRAW_2_MIN;
+  // Display → «Калибровка экрана» (Nikolai 05.11.2026): apply the pictures curve (viewer, own sleep images) — on, as
+  // before; apply the books curve (images inside EPUBs) — off: books whose images were prepared for the screen already
+  // would be corrected twice. Off also makes the calibration screens show the panel's own response
+  // (src/util/PanelCurve).
+  uint8_t panelCalPictures = 1;
+  uint8_t panelCalBooks = 0;
   // Sleep screen cover filter
   uint8_t sleepScreenCoverFilter = NO_FILTER;
   // Status bar settings

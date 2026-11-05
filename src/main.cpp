@@ -157,8 +157,8 @@ enum class BootResume : uint8_t {
 // the current activity. WiFi activities call silentRestart() in onExit() to
 // clear heap fragmentation on the way out, but deep sleep is a full chip reset
 // on wake and already clears the heap, so rebooting here would just power the
-// device back up against the user's sleep gesture. Cleared only by a sleep cancelled in the light linger (enterDeepSleep
-// returns then); otherwise startDeepSleep() does not return and a set latch ends at the wakeup reset.
+// device back up against the user's sleep gesture. Cleared only by a sleep cancelled in the light linger
+// (enterDeepSleep returns then); otherwise startDeepSleep() does not return and a set latch ends at the wakeup reset.
 static bool deepSleepInProgress = false;
 
 // A silent restart is internal maintenance, so the light must come back exactly
@@ -477,12 +477,16 @@ static bool holdSleepWhileUsbPowered() {
 #endif
 
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
-// Settled sleep redraw (Krinik, 04.11.2026; Settings → Display → «Redraw Sleep Screen»): frames drawn seconds before
-// the gray sleep image print into it and drain in minutes. The reader goes to its ordinary deep sleep with one extra
-// wake source: a timer 5 minutes out. The power button wakes it the usual way; the timer boots a short path in setup()
-// that repaints the same own image with a short clean and sleeps again, button only. The image path rides in RTC slow
-// memory (kept through deep sleep, cleared on power loss).
-static constexpr uint64_t SLEEP_SETTLE_US = 5ULL * 60 * 1000 * 1000;
+// Settled sleep redraw (Krinik, 04.11.2026; Settings → Display → Screen Cleaning → «Обновлять заставку»): frames drawn
+// seconds before the gray sleep image print into it and drain in minutes. The reader goes to its ordinary deep sleep
+// with one extra wake source: a timer 1 / 2 / 5 minutes out (the setting, Nikolai 05.11.2026). The power button wakes
+// it the usual way; the timer boots a short path in setup() that repaints the same own image with a short clean and
+// sleeps again, button only. The image path rides in RTC slow memory (kept through deep sleep, cleared on power loss).
+// 0 when the setting is off: callers never arm a zero timer (it would wake the reader at once, in a loop).
+static uint64_t sleepSettleUs() {
+  return static_cast<uint64_t>(CrossPointSettings::redrawDelayMinutes(SETTINGS.sleepSettledRedraw)) * 60ULL * 1000 *
+         1000;
+}
 RTC_DATA_ATTR char sleepRedrawPath[192];
 // This boot came from a panic: no unattended timer redraw on the next sleep (no sleep → panic → awake cycle).
 static bool bootWasPanic = false;
@@ -546,12 +550,14 @@ void enterDeepSleep(bool fromTimeout = false) {
   const std::string& drawnPath = SleepActivity::lastCustomImagePath();
   sleepRedrawPath[0] = '\0';
   // Not on a nearly empty battery: the redraw wakes the reader unasked (review 04.11.2026).
-  if (SETTINGS.sleepSettledRedraw && !isQuickResumeSleep && !drawnPath.empty() &&
-      powerManager.getBatteryPercentage() >= 15 && !bootWasPanic &&
-      drawnPath.size() < sizeof(sleepRedrawPath)) {
+  const uint64_t settleUs = sleepSettleUs();
+  if (settleUs > 0 && !isQuickResumeSleep && !drawnPath.empty() && powerManager.getBatteryPercentage() >= 15 &&
+      !bootWasPanic && drawnPath.size() < sizeof(sleepRedrawPath)) {
     memcpy(sleepRedrawPath, drawnPath.c_str(), drawnPath.size() + 1);
-    esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
-    LOG_DBG("MAIN", "Sleep redraw armed in 5 min: %s", sleepRedrawPath);
+    esp_sleep_enable_timer_wakeup(settleUs);
+    LOG_DBG("MAIN", "Sleep redraw armed in %u min: %s",
+            static_cast<unsigned>(CrossPointSettings::redrawDelayMinutes(SETTINGS.sleepSettledRedraw)),
+            sleepRedrawPath);
   }
 
   // The light lingers over the fresh sleep image before it goes dark (Nikolai 04.11.2026: «успеть в темноте
@@ -577,8 +583,8 @@ void enterDeepSleep(bool fromTimeout = false) {
     // from the current brightness to dark on the SDK's perceptual level curve (gamma 2), one step per 20 ms sample. The
     // fade length is Settings → Display → «Плавная подсветка» like every light animation (0 = goes dark at the end of
     // the window). A press during the fade still wakes the reader.
-    const unsigned long fadeMs = SETTINGS.getLightRampMs();       // ≤ 1000 ms
-    const unsigned long fadeStart = lingerMs - fadeMs;            // every linger value is ≥ 2 s
+    const unsigned long fadeMs = SETTINGS.getLightRampMs();  // ≤ 1000 ms
+    const unsigned long fadeStart = lingerMs - fadeMs;       // every linger value is ≥ 2 s
     uint8_t fromLevel = 0;  // taken when the fade starts: an on-ramp may still be running during the hold
     bool fading = false;
     const unsigned long start = millis();
@@ -588,7 +594,8 @@ void enterDeepSleep(bool fromTimeout = false) {
       if (elapsed >= fadeStart) {
         if (!fading) fromLevel = Frontlight.currentOutputLevel();
         fading = true;
-        const unsigned long left = lingerMs - elapsed;  // 1..fadeMs (fadeMs > 0: elapsed < lingerMs = fadeStart + fadeMs)
+        const unsigned long left =
+            lingerMs - elapsed;  // 1..fadeMs (fadeMs > 0: elapsed < lingerMs = fadeStart + fadeMs)
         Frontlight.setOutputLevel(static_cast<uint8_t>((fromLevel * left + fadeMs / 2) / fadeMs));
       }
       const bool down = pin >= 0 && digitalRead(pin) == pressed;
@@ -631,7 +638,8 @@ void enterDeepSleep(bool fromTimeout = false) {
     if (APP_STATE.lastSleepFromReader && !APP_STATE.openEpubPath.empty()) {
       activityManager.goToReader(APP_STATE.openEpubPath);
     } else {
-      // A clean first paint over the sleep image, as setup() asks on a wake (needsWakeRefresh); Quick Resume wakes fast.
+      // A clean first paint over the sleep image, as setup() asks on a wake (needsWakeRefresh); Quick Resume wakes
+      // fast.
       activityManager.goHome(HomeMenuItem::NONE, !isQuickResumeSleep);
     }
     return;
@@ -741,9 +749,10 @@ void setup() {
 
   auto wakeupReason = gpio.getWakeupReason();
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
-  // The settled sleep redraw's 5-minute timer fired (armed by enterDeepSleep(), path in RTC memory). getWakeupReason()
+  // The settled sleep redraw's timer fired (armed by enterDeepSleep(), path in RTC memory). getWakeupReason()
   // reports this boot as Other; it is handled below, before anything else draws.
-  const bool timerWake = esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
+  const bool timerWake =
+      esp_reset_reason() == ESP_RST_DEEPSLEEP && esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER;
   const bool settledRedrawWake = timerWake && sleepRedrawPath[0] != '\0';
 #endif
   // Sample the wake hold now — a click wake is released within milliseconds of
@@ -751,8 +760,7 @@ void setup() {
   // click-to-wake is a setting, and an X4 battery power-off cuts all power, so
   // only SD state survives to the next boot.
   // The Metalio boots after the button is released, so it skips the check.
-  const bool wakeHoldVerified = wakeupReason != HalGPIO::WakeupReason::PowerButton ||
-                                BoardConfig::isMetalioEInk4() ||
+  const bool wakeHoldVerified = wakeupReason != HalGPIO::WakeupReason::PowerButton || BoardConfig::isMetalioEInk4() ||
                                 gpio.verifyPowerButtonWakeup();
 
   // X4 Pro and X4 Classic both map BTN_UP to GPIO0 — an ESP32-S3 boot strap — so
@@ -821,7 +829,7 @@ void setup() {
     if (pin >= 0) {
       attachInterrupt(pin, onSettledRedrawPress, BoardConfig::ACTIVE.input.powerActiveHigh ? RISING : FALLING);
     }
-    setupDisplayAndFonts(/*seamless=*/true);  // keep the sleep image on the panel until the repaint
+    setupDisplayAndFonts(/*seamless=*/true);                     // keep the sleep image on the panel until the repaint
     I18N.setLanguage(static_cast<Language>(SETTINGS.language));  // the default-screen fallback draws text
     SleepActivity::redrawCustomImage(renderer, mappedInputManager, path);
     if (pin >= 0) detachInterrupt(pin);
@@ -891,8 +899,9 @@ void setup() {
           !(FREEINK_DEVICE_PICCO && gpio.isUsbConnected())) {
         LOG_DBG("MAIN", "Power-button wake not held through verification, sleeping");
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
-        // A brushed button before the 5 minutes ran out: keep the settled sleep redraw (full 5 minutes again).
-        if (sleepRedrawPath[0] != '\0') esp_sleep_enable_timer_wakeup(SLEEP_SETTLE_US);
+        // A brushed button before the delay ran out: keep the settled sleep redraw (the full delay again). SETTINGS is
+        // loaded by now; a delay of 0 (setting off since, e.g. edited on the card) arms nothing.
+        if (sleepRedrawPath[0] != '\0' && sleepSettleUs() > 0) esp_sleep_enable_timer_wakeup(sleepSettleUs());
 #endif
         Storage.prepareForDeepSleep();
         powerManager.startDeepSleep(gpio);

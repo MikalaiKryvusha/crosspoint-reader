@@ -27,7 +27,6 @@
 #include "MappedInputManager.h"
 #include "OpdsServerListActivity.h"
 #include "OtaUpdateActivity.h"
-#include "activities/util/ConfirmationActivity.h"
 #include "SdCardFontSystem.h"
 #include "SdFirmwareUpdateActivity.h"
 #include "SettingsList.h"
@@ -35,11 +34,13 @@
 #include "StatusBarSettingsActivity.h"
 #include "TextSettingsActivity.h"
 #include "activities/network/WifiSelectionActivity.h"
+#include "activities/util/ConfirmationActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
 #include "components/UITheme.h"
 #include "components/UIThemeTokens.h"
 #include "components/UiAppHelpers.h"
 #include "fontIds.h"
+#include "util/CalibrationCard.h"
 #include "util/PluginEvents.h"
 
 namespace fui = freeink::ui;
@@ -74,6 +75,19 @@ SettingsSection sectionFor(const SettingInfo& setting) {
     return SettingsSection::Library;
   }
   if (setting.valuePtr == &CrossPointSettings::sleepTimeoutMinutes) return SettingsSection::Display;
+  // Display → «Настройки очисток экрана» (Nikolai 05.11.2026): every clean / refresh / redraw setting, stock ones too.
+  if (setting.valuePtr == &CrossPointSettings::refreshFrequency ||
+      setting.valuePtr == &CrossPointSettings::homeFullRefresh ||
+      setting.valuePtr == &CrossPointSettings::sheetCloseClean ||
+      setting.valuePtr == &CrossPointSettings::sleepSettledRedraw ||
+      setting.valuePtr == &CrossPointSettings::imageSettledRedraw ||
+      setting.valuePtr == &CrossPointSettings::fadingFix) {
+    return SettingsSection::ScreenClean;
+  }
+  if (setting.valuePtr == &CrossPointSettings::panelCalPictures ||
+      setting.valuePtr == &CrossPointSettings::panelCalBooks) {
+    return SettingsSection::ScreenCalibration;
+  }
   if (setting.category == StrId::STR_CAT_DISPLAY) return SettingsSection::Display;
   if (setting.category == StrId::STR_CAT_READER) return SettingsSection::Reader;
   if (setting.category == StrId::STR_CAT_CONTROLS) return SettingsSection::Controls;
@@ -123,11 +137,18 @@ void SettingsActivity::rebuildSettings() {
     addAction(SettingsSection::Controls, StrId::STR_REMAP_FRONT_BUTTONS, SettingAction::RemapFrontButtons);
   }
 
+  // Display → «Калибровка экрана»: the two calibration screens above its two checkboxes (Nikolai 05.11.2026).
+  addAction(SettingsSection::ScreenCalibration, StrId::STR_CAL_PICTURES_SCREEN,
+            SettingAction::CalibrationPicturesScreen);
+  addAction(SettingsSection::ScreenCalibration, StrId::STR_CAL_BOOKS_SCREEN, SettingAction::CalibrationBooksScreen);
+
   for (auto& setting : all) {
     if (sectionFor(setting) != section || !showOnDevice(setting)) continue;
     settings.push_back(std::move(setting));
   }
 
+  addAction(SettingsSection::Display, StrId::STR_SCREEN_CLEAN_SETTINGS, SettingAction::ScreenCleanSettings);
+  addAction(SettingsSection::Display, StrId::STR_PANEL_CALIBRATION, SettingAction::ScreenCalibrationSettings);
   addAction(SettingsSection::Reader, StrId::STR_CUSTOMISE_STATUS_BAR, SettingAction::CustomiseStatusBar);
   addAction(SettingsSection::Reader, StrId::STR_CLEAR_READING_CACHE, SettingAction::ClearCache);
 
@@ -190,6 +211,8 @@ void SettingsActivity::rebuildRowItems() {
 }
 
 const char* SettingsActivity::headerTitle() const {
+  if (section == SettingsSection::ScreenClean) return tr(STR_SCREEN_CLEAN_SETTINGS);
+  if (section == SettingsSection::ScreenCalibration) return tr(STR_PANEL_CALIBRATION);
   return I18N.get(SETTINGS_SECTION_TITLES[static_cast<size_t>(section)]);
 }
 
@@ -216,6 +239,15 @@ void SettingsActivity::applyUiSettingChange(uint8_t CrossPointSettings::* valueP
 }
 
 bool SettingsActivity::handleCustomInput() {
+  // Back from a calibration screen: Settings opened at Display, now down into «Калибровка экрана».
+  if (section == SettingsSection::Display && pendingSettingsSubSection != SettingsSection::End) {
+    const SettingsSection sub = pendingSettingsSubSection;
+    pendingSettingsSubSection = SettingsSection::End;
+    if (auto activity = makeUniqueNoThrow<SettingsActivity>(renderer, mappedInput, sub)) {
+      startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
+    }
+    return true;
+  }
   return optionPopup.handleInput(mappedInput, [this] { requestUpdate(); });
 }
 
@@ -291,6 +323,42 @@ void SettingsActivity::toggleSelectedSetting() {
     auto resultHandler = [this](const ActivityResult&) { SETTINGS.saveToFile(); };
 
     switch (setting.action) {
+      case SettingAction::ScreenCleanSettings: {
+        auto activity = makeUniqueNoThrow<SettingsActivity>(renderer, mappedInput, SettingsSection::ScreenClean);
+        if (!activity) {
+          LOG_ERR("SETTINGS", "OOM: screen clean settings");
+          return;
+        }
+        startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
+        return;
+      }
+      case SettingAction::ScreenCalibrationSettings: {
+        auto activity = makeUniqueNoThrow<SettingsActivity>(renderer, mappedInput, SettingsSection::ScreenCalibration);
+        if (!activity) {
+          LOG_ERR("SETTINGS", "OOM: screen calibration settings");
+          return;
+        }
+        startActivityForResult(std::move(activity), [this](const ActivityResult&) { requestUpdate(); });
+        return;
+      }
+      case SettingAction::CalibrationPicturesScreen:
+      case SettingAction::CalibrationBooksScreen: {
+        // The card is written once (BMP 1.15 MB, EPUB 0.4 MB) and opened like any image / book; Back returns to
+        // Settings → Display.
+        std::string path;
+        const bool landscape = SETTINGS.orientation == CrossPointSettings::LANDSCAPE_CW ||
+                               SETTINGS.orientation == CrossPointSettings::LANDSCAPE_CCW;
+        const bool ok = setting.action == SettingAction::CalibrationPicturesScreen
+                            ? calibcard::picturesCard(landscape, path)
+                            : calibcard::booksCard(path);
+        if (!ok) {
+          LOG_ERR("SETTINGS", "Calibration card not written");
+          activityManager.goToFullScreenMessage(tr(STR_CAL_CARD_FAILED));
+          return;
+        }
+        activityManager.goToReader(path);
+        return;
+      }
       case SettingAction::HomeButton: {
         // Activities must outlive this call and are owned by the activity stack.
         auto activity = makeUniqueNoThrow<HomeButtonSettingsActivity>(renderer, mappedInput);
@@ -527,6 +595,19 @@ void SettingsActivity::buildScreen(UiScreen& screen) {
   screen.setContentMarginFromScreen(fui::Insets{static_cast<int16_t>(metrics.topPadding + metrics.headerHeight), 0,
                                                 static_cast<int16_t>(metrics.buttonHintsHeight), 0});
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
+
+  // What this sub-screen is for, above its rows (Nikolai 05.11.2026).
+  if (section == SettingsSection::ScreenClean || section == SettingsSection::ScreenCalibration) {
+    auto noteStyle = screen.theme().smallText;
+    noteStyle.maxLines = 6;
+    const char* note = section == SettingsSection::ScreenClean ? tr(STR_SCREEN_CLEAN_NOTE) : tr(STR_PANEL_CAL_NOTE);
+    const int16_t side = static_cast<int16_t>(metrics.contentSidePadding);
+    const int16_t noteW = static_cast<int16_t>(screen.body().width - 2 * side);
+    const int16_t noteH = fui::measureWrappedText(screen.target(), note, noteStyle, noteW).height;
+    screen.target().text(
+        screen.takeTop(noteH, static_cast<int16_t>(metrics.verticalSpacing)).inset(fui::Insets{0, side, 0, side}), note,
+        noteStyle);
+  }
 
   // rowItems_ (label/actionValue) was built by rebuildRowItems(); only the
   // live value text needs refreshing here, by assigning into the existing

@@ -26,7 +26,7 @@ class HalStorage {
   bool ready() const;
   // Card capacity, used space (cached ~20 s; the first call scans the FAT) and FAT type (16, 32, 64 = exFAT).
   uint64_t sdTotalBytes();
-  uint64_t sdUsedBytes();
+  bool sdUsedBytes(uint64_t& usedBytes);
   uint8_t sdFatType();
   // Stop the SD card for deep sleep: unmount, stop the SDMMC host, and release
   // the bus pads (no-op on SPI boards). Call only after all file users have

@@ -19,6 +19,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/CacheLimit.h"
+#include "util/CalibrationCard.h"
 #include "util/DeepClean.h"
 #include "util/GrayGlass.h"
 #include "util/PanelCurve.h"
@@ -184,6 +185,7 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
   if (!Storage.openFileForRead("BMP", filePath, source)) return false;
   const int screenW = renderer.getScreenWidth();
   const int screenH = renderer.getScreenHeight();
+  const uint8_t* tone = curve;
   const std::string key = filePath + '|' + std::to_string(source.size()) + '|' +
                           std::to_string(source.modificationTime()) + '|' + std::to_string(screenW) + 'x' +
                           std::to_string(screenH) + "|k" + std::to_string(curveHash) + '|' + VIEW_CACHE_VERSION;
@@ -206,8 +208,8 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
     if (!Storage.openFileForRead("BMP", filePath, source)) return false;
     HalFile out;
     ok = Storage.openFileForWrite("BMP", tmpPath, out) &&
-         BmpToBmpConverter::bmpFileToBmpStream(source, out, /*crop=*/false, /*originalThresholds=*/false, curve,
-                                               screenW, screenH);
+         BmpToBmpConverter::bmpFileToBmpStream(source, out, /*crop=*/false, /*originalThresholds=*/false, tone, screenW,
+                                               screenH);
     if (out.isOpen()) ok = out.close() && ok;
   } else {
     source.close();
@@ -220,7 +222,7 @@ bool BmpViewerActivity::prepareCache(std::string& outPath) {
     if (!decoder.getDimensions(filePath, dimensions) || dimensions.width <= 0 || dimensions.height <= 0) return false;
     auto config = fitImage(dimensions, renderer, /*enlarge=*/true);
     config.cachePath = VIEW_TMP_PXC;
-    config.toneCurve = curve;
+    config.toneCurve = tone;
     Storage.remove(VIEW_TMP_PXC);
     // The decoder also draws into the framebuffer; the image on screen is untouched until the next refresh.
     ok = decoder.decodeToFramebuffer(filePath, renderer, config) &&
@@ -405,9 +407,10 @@ void BmpViewerActivity::onExit() {
     return;
   }
   grayglass::imageOnGlass = false;
-  // Settings → Display → «Перерисовка меню» (on by default): a short clean before the menus, so the photo leaves no
-  // trace on them.
-  if (SETTINGS.menuExitClean) deepclean::shortClean(renderer);
+  // No clean here: the UC8279 driver runs the first B/W frame after a gray image through its own gray → B/W transition
+  // (transitionGrayscaleBase, every pixel driven, no flash). An extra clean was a second flash over a clean menu
+  // (Nikolai on the reader, 05.11.2026); the option («Перерисовка меню», briefly «Очищать после картинок») is gone with
+  // it.
 }
 
 void BmpViewerActivity::openSibling(const int delta) {
@@ -591,22 +594,29 @@ void BmpViewerActivity::loop() {
 
 #if FREEINK_DEVICE_X4PRO
   // Settled redraw (X4 Pro, Nikolai 04.11.2026): whatever was drawn seconds before the gray image (the file
-  // browser's header line) prints into it and drains in minutes. Two minutes after the paint, repaint it once — its
-  // own path cleans to white first (the driver's base pass) — and the image comes back band-free.
-  if (SETTINGS.imageSettledRedraw && settledRedrawPending && grayglass::imageOnGlass &&
-      millis() - paintedAtMs >= 120000UL) {
-    LOG_DBG("BMP", "Settled redraw after 2 min");
+  // browser's header line) prints into it and drains in minutes. «Обновлять картинки» minutes after the paint (1 / 2 /
+  // 5, Nikolai 05.11.2026; off = 0, never), repaint it once — its own path cleans to white first (the driver's base
+  // pass) — and the image comes back band-free.
+  const uint32_t settleMs = CrossPointSettings::redrawDelayMinutes(SETTINGS.imageSettledRedraw) * 60000UL;
+  if (settleMs > 0 && settledRedrawPending && grayglass::imageOnGlass && millis() - paintedAtMs >= settleMs) {
+    LOG_DBG("BMP", "Settled redraw after %u ms", static_cast<unsigned>(settleMs));
     showCurrent();
     settledRedrawPending = false;
     return;
   }
 #endif
 
-  // As on the book reading surface: no left-edge swipe-to-exit here — in swipe mode a right swipe pages back. The
-  // physical Back button exits; the Home gesture/key stays available.
-  if (!mappedInput.wasBackGesture() && mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+  // Back = a left-to-right swipe that starts in the left quarter of the screen (X4 Pro has no physical Back button), as
+  // in stock. Checked before the touch page turns; swipes starting further right page (Nikolai 05.11.2026).
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
     renderer.setOrientation(savedOrientation);
-    activityManager.goToFileBrowser(filePath);
+    // From the pictures calibration card back to Settings → Display → «Калибровка экрана».
+    if (calibcard::isCalibrationPath(filePath)) {
+      pendingSettingsSubSection = SettingsSection::ScreenCalibration;  // back into «Калибровка экрана»
+      activityManager.goToSettings(SettingsSection::Display);
+    } else {
+      activityManager.goToFileBrowser(filePath);
+    }
     return;
   }
 

@@ -15,6 +15,10 @@ enum class SettingType { TOGGLE, ENUM, ACTION, VALUE, STRING };
 
 enum class SettingAction {
   None,
+  ScreenCleanSettings,
+  ScreenCalibrationSettings,
+  CalibrationPicturesScreen,
+  CalibrationBooksScreen,
   RemapFrontButtons,
   CustomiseStatusBar,
   ClockSettings,
