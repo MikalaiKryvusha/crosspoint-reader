@@ -5,9 +5,9 @@
 Готовая прошивка и руководство — на странице [Releases](../../releases) (последний — `krinik-1.0.0`).
 Оригинальный README апстрима — ниже, после этого раздела.
 
-> *Проект посвящён моей маме — Кривуше Софии Фадеевне, очень большому читателю-книголюбу, которая привила мне любовь к чтению книг.*
+> ❤️ *Проект посвящён моей маме — Кривуше Софии Фадеевне, очень большому читателю-книголюбу, которая привила мне любовь к чтению книг.*
 >
-> *Dedicated to my mother, Sofia Fadeevna Kryvusha — a great reader and lover of books, who gave me my love of reading.*
+> ❤️ *Dedicated to my mother, Sofia Fadeevna Kryvusha — a great reader and lover of books, who gave me my love of reading.*
 
 ## Что изменено
 
