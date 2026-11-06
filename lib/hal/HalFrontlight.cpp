@@ -10,9 +10,10 @@ HalFrontlight HalFrontlight::instance;
 
 namespace {
 #if FREEINK_FRONTLIGHT_DITHER
-// 1 kHz: each step writes the floor or the next duty in proportion to the fraction, so a fade at the dim end
-// (a few LSB) passes through in-between brightnesses instead of whole-LSB jumps. The eye averages 1 kHz.
-constexpr uint64_t kRampStepUs = 1000;
+// 4 kHz: each step writes the floor or the next duty in proportion to the fraction, so a fade at the dim end
+// (a few LSB) passes through in-between brightnesses instead of whole-LSB jumps. Fast enough that even a small
+// fraction's extra-LSB pulses repeat above the eye's flicker limit.
+constexpr uint64_t kRampStepUs = 250;
 #else
 constexpr uint64_t kRampStepUs = 20000;  // one LEDC write per step
 #endif

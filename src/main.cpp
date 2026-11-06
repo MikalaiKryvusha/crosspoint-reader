@@ -594,11 +594,17 @@ void enterDeepSleep(bool fromTimeout = false) {
       const unsigned long elapsed = millis() - start;  // read once: the window check and the fade step agree
       if (elapsed >= lingerMs) break;
       if (elapsed >= fadeStart) {
+#if FREEINK_FRONTLIGHT_DITHER
+        // The timer-driven dithered fade (same length, «Плавная подсветка»): smooth from any brightness.
+        if (!fading) Frontlight.rampOutputTo(0);
+        (void)fromLevel;
+#else
         if (!fading) fromLevel = Frontlight.currentOutputLevel();
-        fading = true;
         const unsigned long left =
             lingerMs - elapsed;  // 1..fadeMs (fadeMs > 0: elapsed < lingerMs = fadeStart + fadeMs)
         Frontlight.setOutputLevel(static_cast<uint8_t>((fromLevel * left + fadeMs / 2) / fadeMs));
+#endif
+        fading = true;
       }
       const bool down = pin >= 0 && digitalRead(pin) == pressed;
       upRun = down ? 0 : upRun + 1;
