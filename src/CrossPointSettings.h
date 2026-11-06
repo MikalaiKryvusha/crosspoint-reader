@@ -302,6 +302,9 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   }
   uint8_t sleepSettledRedraw = REDRAW_OFF;
   uint8_t imageSettledRedraw = REDRAW_OFF;
+  // Screen Cleaning: a full refresh on each Home visit, and a clean repaint after the control center closes.
+  uint8_t homeCleanRefresh = 0;
+  uint8_t controlCenterCloseClean = 0;
   uint8_t textAntiAliasing = 1;
   // Short power button click behaviour
   uint8_t shortPwrBtn = IGNORE;

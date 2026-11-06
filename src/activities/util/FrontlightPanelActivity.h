@@ -69,11 +69,14 @@ class FrontlightPanelActivity final : public Activity, private UiAppHost {
   // not use this — it closes the panel and promotes the repaint underneath
   // instead (GfxRenderer::promoteNextRefresh).
   bool cleanRefreshPending = false;
+  bool refreshTileUsed = false;  // the refresh tile already handed a FULL repaint to the screen underneath
+  bool goingToSleep = false;     // the sleep screen replaces the panel: no exit clean
 
  public:
   explicit FrontlightPanelActivity(GfxRenderer& renderer, MappedInputManager& mappedInput);
   void onEnter() override;
   void onExit() override;
+  void prepareForSleep() override { goingToSleep = true; }
   void loop() override;
   void render(RenderLock&&) override;
   bool handleHomeGesture() override;

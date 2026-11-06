@@ -72,6 +72,10 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Enum(StrId::STR_IMAGE_SETTLED_REDRAW, &CrossPointSettings::imageSettledRedraw,
                          {StrId::STR_STATE_OFF, StrId::STR_AFTER_1_MIN, StrId::STR_AFTER_2_MIN, StrId::STR_AFTER_5_MIN},
                          "imageRedrawDelay", StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Toggle(StrId::STR_HOME_CLEAN_REFRESH, &CrossPointSettings::homeCleanRefresh, "homeFullRefresh",
+                           StrId::STR_CAT_DISPLAY));
+  emit(SettingInfo::Toggle(StrId::STR_CONTROL_CENTER_CLOSE_CLEAN, &CrossPointSettings::controlCenterCloseClean,
+                           "sheetCloseClean", StrId::STR_CAT_DISPLAY));
 
   // --- Reader ---
   // Built-in font-family entry. Replaced per-call with a registry-aware

@@ -26,6 +26,14 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 
+// The first frame of each Home visit: FULL with Clean Home Screen on, the clean HALF the caller asked for,
+// or the usual FAST one. Later frames are FAST.
+HalDisplay::RefreshMode HomeActivity::firstRefreshMode() const {
+  if (firstRenderDone) return HalDisplay::FAST_REFRESH;
+  if (SETTINGS.homeCleanRefresh) return HalDisplay::FULL_REFRESH;
+  return cleanInitialRefresh ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH;
+}
+
 int HomeActivity::getMenuItemCount() const {
   int count = 4;  // File Browser, Library, File transfer, Settings
   if (!recentBooks.empty()) {
@@ -480,8 +488,7 @@ void HomeActivity::render(RenderLock&&) {
     const auto labels = mappedInput.mapLabels(hasContinueReading ? tr(STR_RESUME) : "", tr(STR_SELECT),
                                               tr(STR_DIR_LEFT), tr(STR_DIR_RIGHT));
     GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
-    renderer.displayBuffer(cleanInitialRefresh && !firstRenderDone ? HalDisplay::HALF_REFRESH
-                                                                   : HalDisplay::FAST_REFRESH);
+    renderer.displayBuffer(firstRefreshMode());
     // Slot heights are recorded during the draw above; a change (first layout
     // pass, orientation switch) means the paths must point at those sizes and
     // any missing thumbs must be generated. Refreshing the paths right away
@@ -553,7 +560,7 @@ void HomeActivity::render(RenderLock&&) {
                                             tr(STR_DIR_DOWN));
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4);
 
-  renderer.displayBuffer(cleanInitialRefresh && !firstRenderDone ? HalDisplay::HALF_REFRESH : HalDisplay::FAST_REFRESH);
+  renderer.displayBuffer(firstRefreshMode());
 
   if (!firstRenderDone) {
     firstRenderDone = true;

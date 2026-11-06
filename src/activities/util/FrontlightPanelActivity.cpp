@@ -105,6 +105,11 @@ void FrontlightPanelActivity::persistLightSettings() {
 
 void FrontlightPanelActivity::onExit() {
   persistLightSettings();
+  // Clean After Control Center: the screen underneath repaints next, with the clean waveform. The refresh
+  // tile's FULL is kept, and the sleep screen paints its own way.
+  if (SETTINGS.controlCenterCloseClean && !refreshTileUsed && !goingToSleep) {
+    renderer.promoteNextRefresh(HalDisplay::HALF_REFRESH);
+  }
   Activity::onExit();
 }
 
@@ -158,6 +163,7 @@ void FrontlightPanelActivity::runTile(const int idx) {
       // about to dismiss anyway: drop the panel first and let the repaint of
       // the screen underneath carry the clean waveform instead.
       renderer.promoteNextRefresh(HalDisplay::FULL_REFRESH);
+      refreshTileUsed = true;
       close();
       break;
     case 2:  // Cycle the reading orientation

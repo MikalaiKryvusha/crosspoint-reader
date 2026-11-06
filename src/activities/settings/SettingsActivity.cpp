@@ -74,7 +74,9 @@ SettingsSection sectionFor(const SettingInfo& setting) {
   }
   if (setting.valuePtr == &CrossPointSettings::refreshFrequency || setting.valuePtr == &CrossPointSettings::fadingFix ||
       setting.valuePtr == &CrossPointSettings::sleepSettledRedraw ||
-      setting.valuePtr == &CrossPointSettings::imageSettledRedraw) {
+      setting.valuePtr == &CrossPointSettings::imageSettledRedraw ||
+      setting.valuePtr == &CrossPointSettings::homeCleanRefresh ||
+      setting.valuePtr == &CrossPointSettings::controlCenterCloseClean) {
     return SettingsSection::ScreenClean;
   }
   if (setting.valuePtr == &CrossPointSettings::sleepTimeoutMinutes) return SettingsSection::Display;
