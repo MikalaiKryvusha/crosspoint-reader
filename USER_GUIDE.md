@@ -53,6 +53,10 @@ Welcome to the **CrossPoint** firmware. This guide outlines the hardware control
   - [6. Current Limitations \& Roadmap](#6-current-limitations--roadmap)
   - [7. Troubleshooting Issues \& Escaping Bootloop](#7-troubleshooting-issues--escaping-bootloop)
 
+## krinik 1.1.2 frontlight update
+
+The X4 Pro custom build uses 11-bit PWM at 39062 Hz. Fades start from the current output, including low brightness. Cool and warm channels retain their fractional duties separately, preserving their average mix. The existing timer continues while channel targets are fractional; its battery impact is still being measured. The stable build does not collect a battery log.
+
 ## 1. Hardware Overview
 
 The device utilises the standard buttons on the Xteink X4 (in the same layout as the manufacturer firmware, by default):

@@ -579,12 +579,16 @@ void enterDeepSleep(bool fromTimeout = false) {
     bool released = pin < 0;
     int upRun = 0;
     int downRun = 0;
-    // Experiment (branch nikolai-fade, Nikolai 04.11.2026): the light holds for the window minus the fade, then fades
-    // from the current brightness to dark on the SDK's perceptual level curve (gamma 2), one step per 20 ms sample. The
-    // fade length is Settings → Display → «Плавная подсветка» like every light animation (0 = goes dark at the end of
-    // the window). A press during the fade still wakes the reader.
+    // Hold the light for the window minus the configured fade, then ramp from its current output to dark.
+    // Fractional channel sampling runs on the frontlight timer. A power press can still cancel the sleep.
     const unsigned long fadeMs = SETTINGS.getLightRampMs();  // ≤ 1000 ms
-    const unsigned long fadeStart = lingerMs - fadeMs;       // every linger value is ≥ 2 s
+#if FREEINK_FRONTLIGHT_DITHER
+    // One 20 ms sample early: the loop below notices the moment up to a sample late, and the timer fade must finish
+    // inside the window rather than be cut to dark at its end.
+    const unsigned long fadeStart = lingerMs - fadeMs - 20;  // every linger value is ≥ 2 s
+#else
+    const unsigned long fadeStart = lingerMs - fadeMs;  // every linger value is ≥ 2 s
+#endif
     uint8_t fromLevel = 0;  // taken when the fade starts: an on-ramp may still be running during the hold
     bool fading = false;
     const unsigned long start = millis();
@@ -592,11 +596,17 @@ void enterDeepSleep(bool fromTimeout = false) {
       const unsigned long elapsed = millis() - start;  // read once: the window check and the fade step agree
       if (elapsed >= lingerMs) break;
       if (elapsed >= fadeStart) {
+#if FREEINK_FRONTLIGHT_DITHER
+        // The timer-driven dithered fade (same length, «Плавная подсветка»): smooth from any brightness.
+        if (!fading) Frontlight.rampOutputTo(0);
+        (void)fromLevel;
+#else
         if (!fading) fromLevel = Frontlight.currentOutputLevel();
-        fading = true;
         const unsigned long left =
             lingerMs - elapsed;  // 1..fadeMs (fadeMs > 0: elapsed < lingerMs = fadeStart + fadeMs)
         Frontlight.setOutputLevel(static_cast<uint8_t>((fromLevel * left + fadeMs / 2) / fadeMs));
+#endif
+        fading = true;
       }
       const bool down = pin >= 0 && digitalRead(pin) == pressed;
       upRun = down ? 0 : upRun + 1;
@@ -621,7 +631,11 @@ void enterDeepSleep(bool fromTimeout = false) {
     // sleep event has gone out and is not taken back.
     sleepRedrawPath[0] = '\0';
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+#if FREEINK_FRONTLIGHT_DITHER
+    Frontlight.restoreOutput(true);  // back up from where the fade got to, without a jump
+#else
     Frontlight.restoreOutput();
+#endif
     // The press is a wake, not a click: wait until it is let go (bounded), and consume the release frame in loop().
     const unsigned long releaseStart = millis();
     while (pin >= 0 && digitalRead(pin) == pressed && millis() - releaseStart < 5000) delay(10);

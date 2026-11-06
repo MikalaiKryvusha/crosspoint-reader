@@ -118,3 +118,5 @@ add_test(NAME recursive_dictionary COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT
 add_subdirectory(sleep_image_cursor)
 add_subdirectory(calibration_card)
 add_subdirectory(panel_curve)
+
+add_test(NAME frontlight_dither COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_frontlight_dither.py)

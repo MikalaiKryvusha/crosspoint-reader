@@ -15,9 +15,9 @@ class HalFrontlight {
 
   void setBrightness(uint8_t percent);
   void setWarmth(uint8_t warmPercent);
-  // On X4 Pro the switch is a ramp (setRampMs) on the perceptual curve (Nikolai 04.11.2026: «плавной ШИМ анимацией»), and
-  // so is the light coming on at boot/wake (begin): stepped every 20 ms by an esp_timer in its own task — the caller
-  // (boot, the control center, the power-button toggle) never waits for it. Other boards switch at once, as before.
+  // On X4 Pro the switch is a ramp (setRampMs) on the perceptual curve (Nikolai 04.11.2026: «плавной ШИМ анимацией»),
+  // and so is the light coming on at boot/wake (begin): driven by an esp_timer task — the caller (boot, the control
+  // center, the power-button toggle) never waits for it. Other boards switch at once, as before.
   void setOn(bool on);
   // Ramp length in ms (Settings → Display → «Плавная подсветка»); 0 = switch at once.
   void setRampMs(uint32_t ms) { rampUs = static_cast<int64_t>(ms) * 1000; }
@@ -55,6 +55,7 @@ class HalFrontlight {
   // finalPercent ≥ 0: the ramp ends exactly on that percent (SDK percent curve); −1: it ends on the level itself.
   void startRampLocked(uint8_t toLevel, int16_t finalPercent);
   void cancelRampLocked();
+  void updateDitherTimerLocked();
   void* rampTimer = nullptr;  // esp_timer_handle_t, created in begin() on X4 Pro
   void* mutex = nullptr;      // SemaphoreHandle_t
   int64_t rampStartUs = 0;
@@ -63,7 +64,11 @@ class HalFrontlight {
   uint8_t rampTo = 0;
   uint8_t outLevel = 0;  // the level on the LEDs now (8-bit perceptual), for a ramp or fade to start from
   bool ramping = false;
+  bool timerRunning = false;
   int16_t rampFinalPercent = -1;
+  float outDutyF = 0.0f;       // the exact total duty on the LEDs now: a fade starts from it, no jump
+  float rampFromDutyF = 0.0f;  // the ramp's exact duty endpoints (FREEINK_FRONTLIGHT_DITHER)
+  float rampToDutyF = 0.0f;
 
   static HalFrontlight instance;
 };
