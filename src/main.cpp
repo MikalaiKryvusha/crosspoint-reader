@@ -43,6 +43,7 @@
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
+#include "util/BatteryLog.h"
 #if FREEINK_DEVICE_X4PRO && !defined(SIMULATOR)
 #include <esp_sleep.h>
 
@@ -503,6 +504,7 @@ void enterDeepSleep(bool fromTimeout = false) {
   // Sleep may end in a power-off (battery death, latch); persist the clock
   // floor now so a later cold boot resumes from it.
   trustedtime::note();
+  batterylog::record("sleep");
 
   // Stop Bluetooth before plugin delivery can start WiFi; a timeout defers delivery.
   deepSleepInProgress = true;
@@ -1040,6 +1042,7 @@ void setup() {
     gpio.update();
   }
 
+  batterylog::record("boot");
   allowSleepAt = millis() + 2000;
 }
 
@@ -1084,6 +1087,7 @@ void loop() {
 
   // After the exclusive-storage return: it saves settings to the SD card.
   handleSlideSwitch();
+  batterylog::tick();
   halTiltSensor.update(SETTINGS.tiltPageTurn, SETTINGS.orientation, activityManager.isReaderActivity());
 
   // Under the render lock, so a step never overlaps the themes' gauge reads.
