@@ -9,11 +9,17 @@
 HalFrontlight HalFrontlight::instance;
 
 namespace {
-constexpr uint64_t kRampStepUs = 20000;    // one LEDC write per step
-#if FREEINK_DEVICE_X4PRO
-constexpr bool kRampSupported = true;      // LEDC light on X4 Pro: writes from the timer task are plain register writes
+#if FREEINK_FRONTLIGHT_DITHER
+// 1 kHz: each step writes the floor or the next duty in proportion to the fraction, so a fade at the dim end
+// (a few LSB) passes through in-between brightnesses instead of whole-LSB jumps. The eye averages 1 kHz.
+constexpr uint64_t kRampStepUs = 1000;
 #else
-constexpr bool kRampSupported = false;     // I2C/PMIC lights elsewhere: keep their writes on the caller's task
+constexpr uint64_t kRampStepUs = 20000;  // one LEDC write per step
+#endif
+#if FREEINK_DEVICE_X4PRO
+constexpr bool kRampSupported = true;  // LEDC light on X4 Pro: writes from the timer task are plain register writes
+#else
+constexpr bool kRampSupported = false;  // I2C/PMIC lights elsewhere: keep their writes on the caller's task
 #endif
 
 class Guard {
@@ -29,6 +35,17 @@ class Guard {
   SemaphoreHandle_t mutex;
   bool locked;
 };
+
+// The duty the SDK writes for an 8-bit level (FrontlightManager::apply) and for a percent (its curve).
+uint32_t fullDuty() { return (1u << BoardConfig::ACTIVE.frontlight.pwmResolutionBits) - 1u; }
+float levelDuty(const uint8_t level) {
+  if (level == 0) return 0.0f;
+  const uint32_t n = level - 1u;
+  return static_cast<float>(1u + (n * n * (fullDuty() - 1u)) / (254u * 254u));
+}
+float percentDutyF(const uint8_t percent) {
+  return static_cast<float>(FrontlightManager::percentDuty(percent, fullDuty()));
+}
 }  // namespace
 
 void HalFrontlight::begin(const uint8_t brightness, const uint8_t warmth, const bool on) {
@@ -60,6 +77,7 @@ void HalFrontlight::begin(const uint8_t brightness, const uint8_t warmth, const 
     manager.setBrightness(0);
     manager.setColorTemperature(warmth > 100 ? 100 : warmth);
     outLevel = 0;
+    outDutyF = 0.0f;
     startRampLocked(levelFor(lastBrightness), lastBrightness);
   } else {
     // Brightness first: warmth applied at brightness 0 is an off write, which
@@ -67,6 +85,7 @@ void HalFrontlight::begin(const uint8_t brightness, const uint8_t warmth, const 
     manager.setBrightness(lit ? lastBrightness : 0);
     manager.setColorTemperature(warmth > 100 ? 100 : warmth);
     outLevel = lit ? levelFor(lastBrightness) : 0;
+    outDutyF = lit ? percentDutyF(lastBrightness) : 0.0f;
   }
   LOG_INF("LIGHT", "Frontlight up: %u%% warm=%u%% %s", lastBrightness, manager.colorTemperature(), lit ? "on" : "off");
 }
@@ -78,6 +97,7 @@ void HalFrontlight::setBrightness(const uint8_t percent) {
     cancelRampLocked();  // a slider move during a ramp: the slider wins at once
     manager.setBrightness(lastBrightness);
     outLevel = levelFor(lastBrightness);
+    outDutyF = percentDutyF(lastBrightness);
   }
 }
 
@@ -111,6 +131,7 @@ void HalFrontlight::setOutputLevel(const uint8_t level) {
   cancelRampLocked();
   manager.setBrightnessLevel(level);
   outLevel = level;
+  outDutyF = levelDuty(level);
 }
 
 void HalFrontlight::rampOutputTo(const uint8_t level) {
@@ -123,6 +144,7 @@ void HalFrontlight::rampOutputTo(const uint8_t level) {
   cancelRampLocked();
   manager.setBrightnessLevel(level);
   outLevel = level;
+  outDutyF = levelDuty(level);
 }
 
 void HalFrontlight::restoreOutput(const bool smooth) {
@@ -135,6 +157,7 @@ void HalFrontlight::restoreOutput(const bool smooth) {
   cancelRampLocked();
   manager.setBrightness(lit ? lastBrightness : 0);
   outLevel = lit ? levelFor(lastBrightness) : 0;
+  outDutyF = lit ? percentDutyF(lastBrightness) : 0.0f;
 }
 
 void HalFrontlight::prepareForDeepSleep() {
@@ -153,14 +176,18 @@ void HalFrontlight::setOn(const bool on) {
   }
   manager.setBrightness(lit ? lastBrightness : 0);
   outLevel = lit ? levelFor(lastBrightness) : 0;
+  outDutyF = lit ? percentDutyF(lastBrightness) : 0.0f;
 }
 
 void HalFrontlight::startRampLocked(const uint8_t toLevel, const int16_t finalPercent) {
   auto* timer = static_cast<esp_timer_handle_t>(rampTimer);
   rampFrom = outLevel;  // from where the LEDs are now: a toggle mid-ramp turns around without a jump
   rampTo = toLevel;
+  rampFromDutyF = outDutyF;
+  rampToDutyF = finalPercent >= 0 ? percentDutyF(static_cast<uint8_t>(finalPercent)) : levelDuty(toLevel);
   rampFinalPercent = finalPercent;
   rampStartUs = esp_timer_get_time();
+  ditherAcc = 0.0f;
   ramping = true;
   esp_timer_stop(timer);  // not running → ESP_ERR_INVALID_STATE, harmless
   if (esp_timer_start_periodic(timer, kRampStepUs) != ESP_OK) {
@@ -171,6 +198,7 @@ void HalFrontlight::startRampLocked(const uint8_t toLevel, const int16_t finalPe
       manager.setBrightnessLevel(toLevel);
     }
     outLevel = rampTo;
+    outDutyF = rampToDutyF;
   }
 }
 
@@ -194,11 +222,34 @@ void HalFrontlight::rampTick(void* self) {
       light.manager.setBrightnessLevel(light.rampTo);
     }
     light.outLevel = light.rampTo;
+    light.outDutyF = light.rampToDutyF;
     return;
   }
   const int from = light.rampFrom;
   const int to = light.rampTo;
+#if FREEINK_FRONTLIGHT_DITHER
+  // From the exact duty on the LEDs to the exact target duty, linear in sqrt(duty) — the same eased path as the
+  // 8-bit level ramp, without its rounding — and the LSB fraction carried as an error-diffusion accumulator, so
+  // a fade at any brightness, including a few LSB at the dim end, passes through in-between brightnesses.
+  (void)from;
+  (void)to;
+  const float k = static_cast<float>(t) / static_cast<float>(light.rampUs);
+  const float s0 = sqrtf(light.rampFromDutyF);
+  const float s1 = sqrtf(light.rampToDutyF);
+  const float sNow = s0 + (s1 - s0) * k;
+  const float dutyF = sNow * sNow;
+  auto duty = static_cast<uint32_t>(dutyF);
+  light.ditherAcc += dutyF - static_cast<float>(duty);
+  if (light.ditherAcc >= 1.0f) {
+    light.ditherAcc -= 1.0f;
+    ++duty;
+  }
+  light.manager.setTotalDuty(duty);
+  light.outDutyF = dutyF;
+  light.outLevel = static_cast<uint8_t>(light.rampFrom + (light.rampTo - light.rampFrom) * k + 0.5f);
+#else
   const int level = from + static_cast<int>((to - from) * t / light.rampUs);
   light.manager.setBrightnessLevel(static_cast<uint8_t>(level));
   light.outLevel = static_cast<uint8_t>(level);
+#endif
 }

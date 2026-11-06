@@ -64,6 +64,10 @@ class HalFrontlight {
   uint8_t outLevel = 0;  // the level on the LEDs now (8-bit perceptual), for a ramp or fade to start from
   bool ramping = false;
   int16_t rampFinalPercent = -1;
+  float ditherAcc = 0.0f;      // FREEINK_FRONTLIGHT_DITHER: the LSB fraction carried between 1 kHz fade steps
+  float outDutyF = 0.0f;       // the exact total duty on the LEDs now: a fade starts from it, no jump
+  float rampFromDutyF = 0.0f;  // the ramp's exact duty endpoints (FREEINK_FRONTLIGHT_DITHER)
+  float rampToDutyF = 0.0f;
 
   static HalFrontlight instance;
 };
