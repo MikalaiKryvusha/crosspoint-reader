@@ -18,6 +18,8 @@ namespace batterylog {
 namespace {
 constexpr const char* LOG_PATH = "/.crosspoint/battery_log.csv";
 constexpr unsigned long TICK_MS = 60UL * 1000UL;
+constexpr unsigned long CHARGE_MIN_MS =
+    10UL * 1000UL;  // a STAT pin flickering at end of charge writes at most this often
 unsigned long lastTickMs = 0;
 int lastCharging = -1;
 
@@ -85,7 +87,7 @@ void tick() {
   const int charging = battery().isCharging() ? 1 : 0;
   if (due) {
     record("tick");
-  } else if (lastCharging >= 0 && charging != lastCharging) {
+  } else if (lastCharging >= 0 && charging != lastCharging && now - lastTickMs >= CHARGE_MIN_MS) {
     record("charge");
   }
 }

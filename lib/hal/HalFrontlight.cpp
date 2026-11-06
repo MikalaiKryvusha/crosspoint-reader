@@ -90,10 +90,9 @@ uint8_t HalFrontlight::levelFor(const uint8_t percent) {
   if (percent == 0) return 0;
   // The brightest 8-bit level whose duty does not exceed the percent's duty, in the SDK's own integer forms
   // (FrontlightManager::apply: percent → perceptualDuty, level → 1 + (L-1)²·(full-1)/254²), so a fade starts with no
-  // step up. The percent table is gamma 1.6554 sampled: reproduce it from the same formula, rounded as the SDK does.
+  // step up. The percent's duty comes from the SDK itself, so any brightness curve stays in step.
   const uint32_t full = (1u << BoardConfig::ACTIVE.frontlight.pwmResolutionBits) - 1u;
-  const uint32_t g = static_cast<uint32_t>(lroundf(65535.0f * powf(percent / 100.0f, 1.6554f)));
-  uint32_t percentDuty = (full * g + 32767u) / 65535u;
+  uint32_t percentDuty = FrontlightManager::percentDuty(percent, full);
   if (percentDuty == 0) percentDuty = 1;
   uint8_t best = 1;
   for (uint32_t level = 1; level <= 255; ++level) {
