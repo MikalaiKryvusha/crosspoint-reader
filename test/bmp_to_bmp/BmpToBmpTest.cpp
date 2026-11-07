@@ -1,3 +1,4 @@
+#include <Bitmap.h>
 #include <BmpToBmpConverter.h>
 #include <HalStorage.h>
 #include <Print.h>
@@ -118,6 +119,24 @@ TEST_F(BmpToBmpTest, CropsCenterWhileDownscaling) {
     EXPECT_EQ(le32(out.bytes, 22), topDown ? static_cast<uint32_t>(-64) : 64u);
     EXPECT_EQ(level(out, 2, 32), 0);
     EXPECT_EQ(level(out, 37, 32), 3);
+  }
+}
+
+// The size the headers promise matches a well-formed file, padded rows included (21 px: 63 → 64 bytes at 24bpp).
+TEST_F(BmpToBmpTest, ExpectedFileSizeCoversEveryPaddedRow) {
+  for (const bool topDown : {false, true}) {
+    for (const bool oneBit : {false, true}) {
+      const std::vector<uint8_t> bmp = splitBmp(21, 9, topDown, oneBit);
+      {
+        std::ofstream out(path, std::ios::binary);
+        out.write(reinterpret_cast<const char*>(bmp.data()), bmp.size());
+      }
+      ASSERT_TRUE(file.open(path.c_str(), "rb"));
+      Bitmap bitmap(file);
+      ASSERT_EQ(bitmap.parseHeaders(), BmpReaderError::Ok);
+      EXPECT_EQ(bitmap.expectedFileSize(), bmp.size());
+      file.close();
+    }
   }
 }
 

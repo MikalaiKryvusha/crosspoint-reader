@@ -78,6 +78,10 @@ class Bitmap {
   bool isTopDown() const { return topDown; }
   bool hasGreyscale() const { return bpp > 1; }
   int getRowBytes() const { return rowBytes; }
+  // Bytes the headers promise: pixel data offset plus every row. A shorter file is truncated.
+  uint64_t expectedFileSize() const {
+    return bfOffBits + static_cast<uint64_t>(rowBytes) * static_cast<uint64_t>(height);
+  }
   bool is1Bit() const { return bpp == 1; }
   uint16_t getBpp() const { return bpp; }
 

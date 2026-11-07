@@ -493,7 +493,8 @@ bool findNextValidSleepImage(HalFile& dir, const SleepRecentKind recentKind, cha
 
     const bool isValid = isBmp ? [&dirFile]() {
       Bitmap bitmap(dirFile);
-      return bitmap.parseHeaders() == BmpReaderError::Ok;
+      // A cheap size check, no pixel reads: a truncated copy is skipped here instead of drawing a broken sleep screen.
+      return bitmap.parseHeaders() == BmpReaderError::Ok && dirFile.size() >= bitmap.expectedFileSize();
     }()
                                : isValidPngHeader(dirFile);
     if (!isValid) {
