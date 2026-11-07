@@ -13,6 +13,7 @@
 #include <algorithm>
 
 #include "CrossPointSettings.h"
+#include "activities/reader/ReaderUtils.h"
 #include "activities/util/ConfirmationActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
@@ -464,13 +465,12 @@ void BmpViewerActivity::loop() {
     return;
   }
 
-  const auto swipe = mappedInput.wasSwipe();
-  if (swipe == MappedInputManager::SwipeDir::Left) {
-    openSibling(1);
-    return;
-  }
-  if (swipe == MappedInputManager::SwipeDir::Right) {
-    openSibling(-1);
+  // Touch page turns follow the book reader's settings: the touch master switch and the per-direction
+  // tap / swipe / both / inverted tap / off choice. The viewer has no reader menu, so no center tap is reserved.
+  const auto touch =
+      ReaderUtils::detectTouchPageTurn(renderer, mappedInput, /*rtlBook=*/false, /*reserveReaderMenuTap=*/false);
+  if (touch.next || touch.prev) {
+    openSibling(touch.next ? 1 : -1);
     return;
   }
 
@@ -496,15 +496,11 @@ void BmpViewerActivity::loop() {
     return;
   }
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Left) ||
-      mappedInput.wasReleased(MappedInputManager::Button::Up)) {
-    openSibling(-1);
-    return;
-  }
-
-  if (mappedInput.wasReleased(MappedInputManager::Button::Right) ||
-      mappedInput.wasReleased(MappedInputManager::Button::Down)) {
-    openSibling(1);
+  // Buttons turn images as they turn book pages: front button swap, side button layout, and the power button when
+  // it is set to turn pages.
+  const auto turn = ReaderUtils::detectPageTurn(mappedInput);
+  if (turn.next || turn.prev) {
+    openSibling(turn.next ? 1 : -1);
     return;
   }
 }
