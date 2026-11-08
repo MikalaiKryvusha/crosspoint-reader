@@ -499,6 +499,9 @@ static void IRAM_ATTR onSettledRedrawPress() { settledRedrawPress = true; }
 // Enter deep sleep mode
 void enterDeepSleep(bool fromTimeout = false) {
   HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
+  // Any sleep consumes a pending home «Сон» request: otherwise a sleep entered by another path and then
+  // cancelled in the light linger would be followed by a second, unasked sleep one loop later.
+  activityManager.takeSleepRequest();
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
 
   // Sleep may end in a power-off (battery death, latch); persist the clock
@@ -905,6 +908,7 @@ void setup() {
                                   : (SETTINGS.frontlightOn != 0 && SETTINGS.frontlightRestoreOnWake != 0);
 #ifndef SIMULATOR  // the simulator HAL (external) has no light ramp
   Frontlight.setRampMs(SETTINGS.getLightRampMs());
+  Frontlight.setPreciseTemperature(SETTINGS.frontlightPreciseTemperature != 0);
 #endif
   Frontlight.begin(SETTINGS.frontlightBrightness, SETTINGS.frontlightWarmth, restoreLightOn);
 
@@ -1153,6 +1157,7 @@ void loop() {
   }
 #ifndef SIMULATOR
   Frontlight.setRampMs(SETTINGS.getLightRampMs());  // «Плавная подсветка» applies as soon as it is changed
+  Frontlight.setPreciseTemperature(SETTINGS.frontlightPreciseTemperature != 0);
 #endif
   if (gpio.wasAnyPressed() || gpio.wasAnyReleased() || gpio.wasTouchActivity() || halTiltSensor.hadActivity() ||
       remoteActed || activityManager.preventAutoSleep()) {
@@ -1226,6 +1231,14 @@ void loop() {
   if (SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP && x4ProDoubleClickPwrLight &&
       lastX4ProPowerClickAt != 0 && millis() - lastX4ProPowerClickAt > X4PRO_POWER_DOUBLE_CLICK_MS) {
     lastX4ProPowerClickAt = 0;
+    enterDeepSleep();
+    // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
+    return;
+  }
+
+  // Home «Сон»: the same sleep as the power button (light fade, battery log, sleep screen).
+  if (activityManager.takeSleepRequest()) {
+    LOG_DBG("SLP", "Sleep requested from the home menu");
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
     return;

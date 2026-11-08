@@ -10,9 +10,7 @@ HalFrontlight HalFrontlight::instance;
 
 namespace {
 #if FREEINK_FRONTLIGHT_DITHER
-// 4 kHz: each step writes the floor or the next duty in proportion to the fraction, so a fade at the dim end
-// (a few LSB) passes through in-between brightnesses instead of whole-LSB jumps. Fast enough that even a small
-// fraction's extra-LSB pulses repeat above the eye's flicker limit.
+// 4 kHz sampling of the two channel accumulators. Rare fractional pulses can repeat more slowly than this timer.
 constexpr uint64_t kRampStepUs = 250;
 #else
 constexpr uint64_t kRampStepUs = 20000;  // one LEDC write per step
@@ -50,6 +48,7 @@ float percentDutyF(const uint8_t percent) {
 }  // namespace
 
 void HalFrontlight::begin(const uint8_t brightness, const uint8_t warmth, const bool on) {
+  manager.setPwmDitherLimit(preciseTemperature ? FrontlightManager::percentDuty(10, fullDuty()) : 0);
   // begin() runs the hardware probe (EEGO A4: an I2C ACK from the LM3630A at
   // 0x36) that decides present(), so it must come FIRST. Guarding on present()
   // before begin() would skip the probe forever and hide the light on units
@@ -88,6 +87,7 @@ void HalFrontlight::begin(const uint8_t brightness, const uint8_t warmth, const 
     outLevel = lit ? levelFor(lastBrightness) : 0;
     outDutyF = lit ? percentDutyF(lastBrightness) : 0.0f;
   }
+  updateDitherTimerLocked();
   LOG_INF("LIGHT", "Frontlight up: %u%% warm=%u%% %s", lastBrightness, manager.colorTemperature(), lit ? "on" : "off");
 }
 
@@ -99,12 +99,22 @@ void HalFrontlight::setBrightness(const uint8_t percent) {
     manager.setBrightness(lastBrightness);
     outLevel = levelFor(lastBrightness);
     outDutyF = percentDutyF(lastBrightness);
+    updateDitherTimerLocked();
   }
 }
 
 void HalFrontlight::setWarmth(const uint8_t warmPercent) {
   Guard guard(mutex);
   manager.setColorTemperature(warmPercent > 100 ? 100 : warmPercent);
+  updateDitherTimerLocked();
+}
+
+void HalFrontlight::setPreciseTemperature(const bool enabled) {
+  if (enabled == preciseTemperature) return;
+  Guard guard(mutex);
+  preciseTemperature = enabled;
+  manager.setPwmDitherLimit(enabled ? FrontlightManager::percentDuty(10, fullDuty()) : 0);
+  updateDitherTimerLocked();
 }
 
 uint8_t HalFrontlight::levelFor(const uint8_t percent) {
@@ -133,6 +143,7 @@ void HalFrontlight::setOutputLevel(const uint8_t level) {
   manager.setBrightnessLevel(level);
   outLevel = level;
   outDutyF = levelDuty(level);
+  updateDitherTimerLocked();
 }
 
 void HalFrontlight::rampOutputTo(const uint8_t level) {
@@ -146,6 +157,7 @@ void HalFrontlight::rampOutputTo(const uint8_t level) {
   manager.setBrightnessLevel(level);
   outLevel = level;
   outDutyF = levelDuty(level);
+  updateDitherTimerLocked();
 }
 
 void HalFrontlight::restoreOutput(const bool smooth) {
@@ -159,6 +171,7 @@ void HalFrontlight::restoreOutput(const bool smooth) {
   manager.setBrightness(lit ? lastBrightness : 0);
   outLevel = lit ? levelFor(lastBrightness) : 0;
   outDutyF = lit ? percentDutyF(lastBrightness) : 0.0f;
+  updateDitherTimerLocked();
 }
 
 void HalFrontlight::prepareForDeepSleep() {
@@ -178,6 +191,7 @@ void HalFrontlight::setOn(const bool on) {
   manager.setBrightness(lit ? lastBrightness : 0);
   outLevel = lit ? levelFor(lastBrightness) : 0;
   outDutyF = lit ? percentDutyF(lastBrightness) : 0.0f;
+  updateDitherTimerLocked();
 }
 
 void HalFrontlight::startRampLocked(const uint8_t toLevel, const int16_t finalPercent) {
@@ -188,10 +202,10 @@ void HalFrontlight::startRampLocked(const uint8_t toLevel, const int16_t finalPe
   rampToDutyF = finalPercent >= 0 ? percentDutyF(static_cast<uint8_t>(finalPercent)) : levelDuty(toLevel);
   rampFinalPercent = finalPercent;
   rampStartUs = esp_timer_get_time();
-  ditherAcc = 0.0f;
   ramping = true;
   esp_timer_stop(timer);  // not running → ESP_ERR_INVALID_STATE, harmless
-  if (esp_timer_start_periodic(timer, kRampStepUs) != ESP_OK) {
+  timerRunning = esp_timer_start_periodic(timer, kRampStepUs) == ESP_OK;
+  if (!timerRunning) {
     ramping = false;  // no timer: switch at once, as on other boards
     if (finalPercent >= 0) {
       manager.setBrightness(static_cast<uint8_t>(finalPercent));
@@ -204,15 +218,35 @@ void HalFrontlight::startRampLocked(const uint8_t toLevel, const int16_t finalPe
 }
 
 void HalFrontlight::cancelRampLocked() {
-  if (!ramping) return;
   ramping = false;
-  esp_timer_stop(static_cast<esp_timer_handle_t>(rampTimer));
+  if (timerRunning) {
+    esp_timer_stop(static_cast<esp_timer_handle_t>(rampTimer));
+    timerRunning = false;
+  }
+}
+
+void HalFrontlight::updateDitherTimerLocked() {
+#if FREEINK_FRONTLIGHT_DITHER && FREEINK_DEVICE_X4PRO
+  if (rampTimer == nullptr || ramping) return;
+  if (!manager.needsPwmDither()) {
+    cancelRampLocked();
+  } else if (!timerRunning) {
+    timerRunning = esp_timer_start_periodic(static_cast<esp_timer_handle_t>(rampTimer), kRampStepUs) == ESP_OK;
+  }
+#endif
 }
 
 void HalFrontlight::rampTick(void* self) {
   auto& light = *static_cast<HalFrontlight*>(self);
   Guard guard(light.mutex);
-  if (!light.ramping) return;  // cancelled while this tick waited for the lock
+  if (!light.timerRunning) return;  // cancelled or parked while this tick waited for the lock
+  if (!light.ramping) {
+#if FREEINK_FRONTLIGHT_DITHER && FREEINK_DEVICE_X4PRO
+    light.manager.setTotalDuty(light.outDutyF);
+    light.updateDitherTimerLocked();
+#endif
+    return;
+  }
   const int64_t t = esp_timer_get_time() - light.rampStartUs;
   if (t >= light.rampUs || light.rampUs <= 0) {
     light.cancelRampLocked();
@@ -224,14 +258,13 @@ void HalFrontlight::rampTick(void* self) {
     }
     light.outLevel = light.rampTo;
     light.outDutyF = light.rampToDutyF;
+    light.updateDitherTimerLocked();
     return;
   }
   const int from = light.rampFrom;
   const int to = light.rampTo;
 #if FREEINK_FRONTLIGHT_DITHER
-  // From the exact duty on the LEDs to the exact target duty, linear in sqrt(duty) — the same eased path as the
-  // 8-bit level ramp, without its rounding — and the LSB fraction carried as an error-diffusion accumulator, so
-  // a fade at any brightness, including a few LSB at the dim end, passes through in-between brightnesses.
+  // Preserve the fractional total until the SDK mixes and quantizes the two channels.
   (void)from;
   (void)to;
   const float k = static_cast<float>(t) / static_cast<float>(light.rampUs);
@@ -239,13 +272,7 @@ void HalFrontlight::rampTick(void* self) {
   const float s1 = sqrtf(light.rampToDutyF);
   const float sNow = s0 + (s1 - s0) * k;
   const float dutyF = sNow * sNow;
-  auto duty = static_cast<uint32_t>(dutyF);
-  light.ditherAcc += dutyF - static_cast<float>(duty);
-  if (light.ditherAcc >= 1.0f) {
-    light.ditherAcc -= 1.0f;
-    ++duty;
-  }
-  light.manager.setTotalDuty(duty);
+  light.manager.setTotalDuty(dutyF);
   light.outDutyF = dutyF;
   light.outLevel = static_cast<uint8_t>(light.rampFrom + (light.rampTo - light.rampFrom) * k + 0.5f);
 #else

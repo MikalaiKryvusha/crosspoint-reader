@@ -38,7 +38,7 @@ HalDisplay::RefreshMode HomeActivity::firstRefreshMode() const {
 }
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 5;  // File Browser, Library, File transfer, Settings, Flashlight
+  int count = 6;  // File Browser, Library, File transfer, Settings, Flashlight, Sleep
 #if KRINIK_MAMA
   count++;  // «♥ Для любимой Мамы» under Settings
 #endif
@@ -345,6 +345,9 @@ void HomeActivity::loop() {
       case HomeMenuItem::FLASHLIGHT:
         activityManager.goToFlashlight();
         break;
+      case HomeMenuItem::SLEEP:
+        activityManager.requestSleep();
+        break;
 #if KRINIK_MAMA
       case HomeMenuItem::MAMA_HEART:
         activityManager.goToMama();
@@ -558,6 +561,9 @@ void HomeActivity::render(RenderLock&&) {
   // «Фонарик» (Nikolai 04.11.2026): a white screen at full light, above «Для любимой Мамы» in the mama build.
   menuItems.push_back(tr(STR_FLASHLIGHT));
   menuIcons.push_back(Flashlight);
+  // «Сон» right under «Фонарик» (Nikolai 06.11.2026): the same sleep as the power button.
+  menuItems.push_back(tr(STR_SLEEP));
+  menuIcons.push_back(Sleep);
 #if KRINIK_MAMA
   // No «♥» in the text: the UI font lacks the glyph. Icon themes show a heart icon, text themes the words.
   menuItems.push_back("Для любимой Мамы");

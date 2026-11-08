@@ -17,7 +17,7 @@
 namespace batterylog {
 namespace {
 constexpr const char* LOG_PATH = "/.crosspoint/battery_log.csv";
-constexpr unsigned long TICK_MS = 60UL * 1000UL;
+constexpr unsigned long TICK_MS = 20UL * 60UL * 1000UL;
 constexpr unsigned long CHARGE_MIN_MS =
     10UL * 1000UL;  // a STAT pin flickering at end of charge writes at most this often
 unsigned long lastTickMs = 0;

@@ -55,6 +55,8 @@ class HomeActivity final : public Activity {
     if (item == HomeMenuItem::SETTINGS_MENU) return i;
     ++i;
     if (item == HomeMenuItem::FLASHLIGHT) return i;
+    ++i;
+    if (item == HomeMenuItem::SLEEP) return i;
 #if KRINIK_MAMA
     ++i;
     if (item == HomeMenuItem::MAMA_HEART) return i;
@@ -71,6 +73,7 @@ class HomeActivity final : public Activity {
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
     if (idx == i++) return HomeMenuItem::SETTINGS_MENU;
     if (idx == i++) return HomeMenuItem::FLASHLIGHT;
+    if (idx == i++) return HomeMenuItem::SLEEP;
 #if KRINIK_MAMA
     if (idx == i) return HomeMenuItem::MAMA_HEART;
 #endif

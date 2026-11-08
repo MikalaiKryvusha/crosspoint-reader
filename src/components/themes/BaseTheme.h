@@ -149,7 +149,8 @@ enum UIIcon {
   Usb,
   Blocks,
   Heart,
-  Flashlight
+  Flashlight,
+  Sleep
 };
 
 // Default theme implementation (Classic Theme)

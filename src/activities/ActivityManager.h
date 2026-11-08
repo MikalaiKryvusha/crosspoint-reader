@@ -18,7 +18,17 @@
 class Activity;    // forward declaration
 class RenderLock;  // forward declaration
 
-enum class HomeMenuItem { NONE, FILE_BROWSER, LIBRARY, OPDS_BROWSER, FILE_TRANSFER, SETTINGS_MENU, FLASHLIGHT, MAMA_HEART };
+enum class HomeMenuItem {
+  NONE,
+  FILE_BROWSER,
+  LIBRARY,
+  OPDS_BROWSER,
+  FILE_TRANSFER,
+  SETTINGS_MENU,
+  FLASHLIGHT,
+  SLEEP,
+  MAMA_HEART
+};
 
 /**
  * ActivityManager
@@ -49,6 +59,8 @@ class ActivityManager {
   std::unique_ptr<Activity> pendingActivity;
   enum class PendingAction { None, Push, Pop, Replace, ReplaceForSleep };
   PendingAction pendingAction = PendingAction::None;
+  // Set by requestSleep() from an activity loop, taken by main.cpp's loop on the same task.
+  bool sleepRequested = false;
 
   // Task to render and display the activity
   TaskHandle_t renderTaskHandle = nullptr;
@@ -90,6 +102,14 @@ class ActivityManager {
   // openSection jumps straight into one group (End = the section list).
   void goToSettings(SettingsSection openSection = SettingsSection::End);
   void goToFlashlight();
+  // Home «Сон» (Nikolai 06.11.2026): an activity must not tear itself down from its own loop, so it only asks;
+  // main.cpp's loop takes the request and runs the same enterDeepSleep() as the power button.
+  void requestSleep() { sleepRequested = true; }
+  bool takeSleepRequest() {
+    const bool requested = sleepRequested;
+    sleepRequested = false;
+    return requested;
+  }
 #if KRINIK_MAMA
   void goToMama();
 #endif

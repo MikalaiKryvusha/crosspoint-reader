@@ -55,6 +55,10 @@ void forEachBaseSetting(SettingVisitor visit, void* context) {
   emit(SettingInfo::Enum(StrId::STR_LIGHT_RAMP, &CrossPointSettings::lightRamp,
                          {StrId::STR_STATE_OFF, StrId::STR_MS_200, StrId::STR_MS_500, StrId::STR_MS_1000}, "lightRamp",
                          StrId::STR_CAT_DISPLAY));
+#if FREEINK_FRONTLIGHT_DITHER && FREEINK_DEVICE_X4PRO
+  emit(SettingInfo::Toggle(StrId::STR_PRECISE_TEMPERATURE, &CrossPointSettings::frontlightPreciseTemperature,
+                           "frontlightPreciseTemperature", StrId::STR_CAT_DISPLAY));
+#endif
   emit(SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
                          {StrId::STR_NONE_OPT, StrId::STR_FILTER_CONTRAST, StrId::STR_INVERTED},
                          "sleepScreenCoverFilter", StrId::STR_CAT_DISPLAY));
