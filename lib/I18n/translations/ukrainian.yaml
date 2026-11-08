@@ -445,3 +445,6 @@ STR_RECOVERY_MODE: "Режим відновлення"
 STR_RECOVERY_MODE_HINT: "Помістіть firmware.bin у корінь SD-карти та виберіть його"
 STR_ADD_HIDDEN_NETWORK: "Додати приховану мережу..."
 STR_ENTER_WIFI_SSID: "Введіть назву мережі (SSID)"
+
+STR_FLASHLIGHT: "Ліхтарик"
+STR_FLASHLIGHT_EXIT: "Вихід"

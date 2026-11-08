@@ -648,3 +648,6 @@ STR_BT_HOLD: "basıb saxla"
 STR_BT_MAPPING_CLEARED: "Düymə təyinatı silindi"
 STR_DELETE_ITEM_CONFIRM: "Silinsin?"
 STR_SET_SLEEP_COVER_CONFIRM: "Yuxu örtüyü təyin edilsin?"
+
+STR_FLASHLIGHT: "Fənər"
+STR_FLASHLIGHT_EXIT: "Çıxış"

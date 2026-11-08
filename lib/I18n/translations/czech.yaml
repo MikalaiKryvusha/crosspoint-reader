@@ -445,3 +445,6 @@ STR_UPDATE_AVAILABLE: "Aktualizace"
 STR_USERNAME_TAKEN: "Uživatelské jméno je již zaregistrováno"
 STR_VALIDATING_FIRMWARE: "Ověřování firmwaru..."
 STR_XTC_STATUS_BAR: "Stavový řádek XTC"
+
+STR_FLASHLIGHT: "Svítilna"
+STR_FLASHLIGHT_EXIT: "Konec"

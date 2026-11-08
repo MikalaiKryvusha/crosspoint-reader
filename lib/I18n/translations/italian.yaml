@@ -660,3 +660,6 @@ STR_WIFI_NETWORKS: "Reti Wi-Fi"
 STR_WORD_SPACING: "Spaziatura parole"
 STR_XTC_STATUS_BAR: "Barra di stato XTC"
 STR_YES: "Sì"
+
+STR_FLASHLIGHT: "Torcia"
+STR_FLASHLIGHT_EXIT: "Esci"

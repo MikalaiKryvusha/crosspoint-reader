@@ -5,6 +5,7 @@
 #include <FontCacheManager.h>
 #include <FsHelpers.h>
 #include <HalDisplay.h>
+#include <HalFrontlight.h>
 #include <HalPowerManager.h>
 #include <Memory.h>
 #include <VectorFontSupport.h>
@@ -31,6 +32,7 @@
 #include "settings/OpdsServerListActivity.h"
 #include "settings/SettingsListActivity.h"
 #include "util/BmpViewerActivity.h"
+#include "util/FlashlightActivity.h"
 #include "util/FrontlightPanelActivity.h"
 #include "util/FullScreenMessageActivity.h"
 
@@ -293,6 +295,10 @@ void ActivityManager::goToUsbDrive() {
 #endif
 }
 
+void ActivityManager::goToFlashlight() {
+  if (Frontlight.present()) replaceActivity(std::make_unique<FlashlightActivity>(renderer, mappedInput));
+}
+
 void ActivityManager::goToSettings(const SettingsSection openSection) {
   replaceActivity(std::make_unique<SettingsListActivity>(renderer, mappedInput, openSection));
 }
@@ -371,6 +377,8 @@ void ActivityManager::goHome(HomeMenuItem initialMenuItem, bool cleanInitialRefr
       initialMenuItem = HomeMenuItem::FILE_TRANSFER;
     } else if (activityName == "Settings" || activityName == "SettingsList") {
       initialMenuItem = HomeMenuItem::SETTINGS_MENU;
+    } else if (activityName == "Flashlight") {
+      initialMenuItem = HomeMenuItem::FLASHLIGHT;
     }
   }
   replaceActivity(std::make_unique<HomeActivity>(renderer, mappedInput, initialMenuItem, cleanInitialRefresh));

@@ -332,3 +332,6 @@ STR_AUTO_TURN_PAGES_PER_MIN: "Autom. omslaan (pagina's per minuut)"
 STR_TILT_PAGE_TURN: "Kantel om te bladeren"
 STR_ADD_HIDDEN_NETWORK: "Verborgen netwerk toevoegen..."
 STR_ENTER_WIFI_SSID: "Voer netwerknaam in (SSID)"
+
+STR_FLASHLIGHT: "Zaklamp"
+STR_FLASHLIGHT_EXIT: "Sluit"

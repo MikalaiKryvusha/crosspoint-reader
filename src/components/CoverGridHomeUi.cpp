@@ -12,6 +12,7 @@
 #include "UITheme.h"
 #include "icons/blocks.h"
 #include "icons/book.h"
+#include "icons/flashlight.h"
 #include "icons/folder.h"
 #include "icons/library.h"
 #include "icons/settings2.h"
@@ -30,10 +31,11 @@ constexpr int COVER_ROW_EXTRA_HEIGHT = 8;
 CoverGridHomeUi::CoverGridHomeUi(GfxRenderer& renderer)
     : UiAppHost(renderer), coverCache(renderer), renderer(renderer) {}
 
-void CoverGridHomeUi::begin(const std::vector<RecentBook>& recent, bool opds, bool continuing) {
+void CoverGridHomeUi::begin(const std::vector<RecentBook>& recent, bool opds, bool continuing, bool flashlight) {
   books = &recent;
   hasOpds = opds;
   hasContinueReading = continuing;
+  hasFlashlight = flashlight;
   if (!recent.empty()) coverCache.begin();
   resetUi();
   app.on(SELECT, &CoverGridHomeUi::onAction, this);
@@ -283,9 +285,11 @@ void CoverGridHomeUi::drawGrid(UiScreen& screen) {
 }
 
 void CoverGridHomeUi::drawTabs(UiScreen& screen, fui::Rect rect) {
-  static constexpr const uint8_t* ICONS[] = {FolderIcon, LibraryIcon, BlocksIcon, TransferIcon, Settings2Icon};
+  static constexpr const uint8_t* ICONS[] = {FolderIcon,   LibraryIcon,   BlocksIcon,
+                                             TransferIcon, Settings2Icon, FlashlightIcon};
   int count = 0;
-  for (int i = 0; i < 5; ++i) {
+  for (int i = 0; i < 6; ++i) {
+    if (i == 5 && !hasFlashlight) continue;
     if (i == 2 && !hasOpds) continue;
     auto& tab = tabItems[count];
     tab.value = books->size() + count;

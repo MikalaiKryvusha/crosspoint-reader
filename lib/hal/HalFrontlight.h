@@ -16,6 +16,9 @@ class HalFrontlight {
   void setBrightness(uint8_t percent);
   void setWarmth(uint8_t warmPercent);
   void setOn(bool on);
+  // Temporary perceptual output (0..255), without changing the saved brightness/on state.
+  void setOutputLevel(uint8_t level);
+  void restoreOutput();
 
   uint8_t brightness() const { return lastBrightness; }
   uint8_t warmth() const { return manager.colorTemperature(); }

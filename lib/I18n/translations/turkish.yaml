@@ -446,3 +446,6 @@ STR_UPDATE_ALL: "Tümünü Güncelle"
 STR_UPDATE_AVAILABLE: "Güncelle"
 STR_VALIDATING_FIRMWARE: "Firmware doğrulanıyor..."
 STR_XTC_STATUS_BAR: "XTC Durum Çubuğu"
+
+STR_FLASHLIGHT: "El feneri"
+STR_FLASHLIGHT_EXIT: "Çıkış"

@@ -5,6 +5,7 @@
 #include <FsHelpers.h>
 #include <GfxRenderer.h>
 #include <HalDisplay.h>
+#include <HalFrontlight.h>
 #include <HalStorage.h>
 #include <I18n.h>
 #include <LibraryBuilder.h>
@@ -27,7 +28,7 @@
 #include "fontIds.h"
 
 int HomeActivity::getMenuItemCount() const {
-  int count = 4;  // File Browser, Library, File transfer, Settings
+  int count = 4 + (Frontlight.present() ? 1 : 0);  // Base actions and an optional flashlight
   if (!recentBooks.empty()) {
     count += recentBooks.size();
   }
@@ -246,11 +247,13 @@ void HomeActivity::onEnter() {
   if (coverGridUi) {
     fillCoverGridFromLibrary();
     resolveGridCoverPaths();
-    coverGridUi->begin(recentBooks, hasLibrarySlot(), hasContinueReading);
+    coverGridUi->begin(recentBooks, hasLibrarySlot(), hasContinueReading, Frontlight.present());
   }
 
   const auto base = static_cast<int>(recentBooks.size());
-  selectorIndex = initialMenuItem == HomeMenuItem::NONE ? 0 : base + menuItemToIndex(initialMenuItem, hasLibrarySlot());
+  selectorIndex = initialMenuItem == HomeMenuItem::NONE
+                      ? 0
+                      : base + menuItemToIndex(initialMenuItem, hasLibrarySlot(), Frontlight.present());
 
   // Trigger first update
   requestUpdate();
@@ -311,7 +314,7 @@ void HomeActivity::loop() {
       return;
     }
     const int menuIndex = selectorIndex - static_cast<int>(recentBooks.size());
-    switch (indexToMenuItem(menuIndex, hasLibrarySlot())) {
+    switch (indexToMenuItem(menuIndex, hasLibrarySlot(), Frontlight.present())) {
       case HomeMenuItem::FILE_BROWSER:
         onFileBrowserOpen();
         break;
@@ -326,6 +329,9 @@ void HomeActivity::loop() {
         break;
       case HomeMenuItem::SETTINGS_MENU:
         onSettingsOpen();
+        break;
+      case HomeMenuItem::FLASHLIGHT:
+        activityManager.goToFlashlight();
         break;
       default:
         break;
@@ -524,9 +530,18 @@ void HomeActivity::render(RenderLock&&) {
                           std::bind(&HomeActivity::storeCoverBuffer, this));
 
   // Build menu items dynamically
-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES), tr(STR_LIBRARY), tr(STR_FILE_TRANSFER),
-                                        tr(STR_SETTINGS_TITLE)};
-  std::vector<UIIcon> menuIcons = {Folder, Library, Transfer, Settings};
+  std::vector<const char*> menuItems;
+  std::vector<UIIcon> menuIcons;
+  menuItems.reserve(6);  // Four base actions, optional library service and flashlight.
+  menuIcons.reserve(6);
+  for (const auto label : {STR_BROWSE_FILES, STR_LIBRARY, STR_FILE_TRANSFER, STR_SETTINGS_TITLE}) {
+    menuItems.push_back(tr(label));
+  }
+  for (const auto icon : {Folder, Library, Transfer, Settings}) menuIcons.push_back(icon);
+  if (Frontlight.present()) {
+    menuItems.push_back(tr(STR_FLASHLIGHT));
+    menuIcons.push_back(Flashlight);
+  }
 
   if (hasLibrarySlot()) {
     menuItems.insert(menuItems.begin() + 2, hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));
